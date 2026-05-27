@@ -43,9 +43,8 @@ sequence of poses, is already known~\cite{thrun2005probabilistic}:
 Even with exact poses the problem is non-trivial: the space of possible maps
 is high-dimensional, and repeated sensor noise combined with visually similar
 places can lead to incorrect data associations.
-Any pose error further degrades the result, since a measurement placed at
-the wrong location introduces geometric inconsistencies that propagate across
-the entire model.
+Any pose error further deteriorates the result, since a measurement placed at
+the wrong location introduces geometrical distortion that spreads across the entire map.
 Common map representations used in this thesis are the 2D occupancy grid and
 the 3D point cloud, described in Section~\ref{sec:map_representations}.
 
@@ -62,25 +61,28 @@ motion commands $\mathbf{u}_{1:t}$~\cite{thrun2005probabilistic}:
 \end{equation}
 
 Because pose cannot be read from a sensor directly, the estimate must be
-built up incrementally over time.
-Three operating modes are distinguished depending on prior knowledge~\cite[p.~159]{thrun2005probabilistic}.
-In \emph{pose tracking} a reliable initial estimate is already available and the
-uncertainty remains small throughout operation.
-In \emph{global localisation} the starting position is completely unknown, so the
-belief may be spread across the whole environment and can be multimodal.
-The \emph{kidnapped robot problem} is a harder variant of global localisation:
-the robot is teleported to an unknown location during operation without being
-informed, so it must detect that its current belief is wrong and recover a
-correct estimate from scratch.
-In this thesis the algorithms operate in passive mode --- they process sensor
-data recorded along a fixed trajectory without influencing the robot's motion.
+built incrementally: each new measurement updates the previous estimate rather
+than recomputing the pose from scratch.
+Two operating modes are distinguished depending on prior knowledge~\cite[p.~159]{thrun2005probabilistic}.
+In \emph{pose tracking} estimate of starting position is available,
+so the search is confined to a small neighbourhood of the current estimate.
+This knowledge keeps computational cost low but provides no recovery mechanism if the
+robot becomes lost.
+In \emph{global localisation} the starting position is completely unknown, so
+the belief is initialised uniformly over the entire map and converges toward
+the true pose as more observations are collected.
+% A harder variant, the \emph{kidnapped robot problem}, arises when the robot is
+% moved to an unknown location during operation without being informed, requiring
+% the system to detect the inconsistency and re-localise from scratch.
+% All algorithms evaluated in this thesis operate in pose tracking mode: they
+% process sensor data recorded along a fixed trajectory from a known starting
+% position, so global localisation is not required.
 
 \subsection{SLAM}
 
-SLAM removes the assumption of known poses from mapping and the assumption of a
-known map from localisation, solving both problems jointly from raw sensor
-measurements $\mathbf{z}_{1:t}$ and motion commands $\mathbf{u}_{1:t}$
-alone~\cite{thrun2005probabilistic}.
+SLAM assumes that neither the robot poses nor the map are known, and solves
+both problems jointly from raw sensor measurements $\mathbf{z}_{1:t}$ and
+motion commands $\mathbf{u}_{1:t}$~\cite[p.~245]{thrun2005probabilistic}.
 This creates a circular dependency: an accurate map requires accurate poses, and
 accurate poses require an accurate map.
 The key mechanism that breaks this cycle is loop closure, where recognising a
@@ -185,6 +187,26 @@ textureless, repeating environments.
 % disparity error corresponds to a large depth error. Cameras also provide rich
 % texture information useful for feature matching and place recognition, but their
 % performance degrades in low-light conditions and in textureless environments.
+
+\subsection{360-Degree Camera}
+
+A 360-degree (omnidirectional) camera captures the full horizontal field of
+view in a single frame, either through a fisheye lens or by stitching multiple
+camera feeds into an equirectangular projection.
+Compared to a standard perspective camera, the wider coverage reduces the risk
+of losing tracked features when the robot rotates sharply, and provides richer
+context for place recognition.
+
+Despite these advantages, 360-degree cameras are not evaluated in this thesis
+for two reasons.
+First, the visual SLAM algorithms considered — ORB-SLAM3 and RTAB-Map — are
+designed around the pinhole camera model; supporting omnidirectional optics
+requires either remapping the image to a perspective projection, which
+discards the wide-angle benefit, or using specialised fisheye variants that
+were outside the scope of this work.
+Second, the simulation environment used (Isaac Sim) does not provide a
+native omnidirectional camera model, making it impractical to generate
+representative training and evaluation data for such a sensor.
 
 \subsection{IMU}
 
@@ -477,9 +499,16 @@ thesis.
 \section{Graph-Based SLAM}
 \label{sec:graph_slam}
 
-% TODO: Section intro
-%   - Explain the two-phase structure: front-end (build graph) and back-end (optimise graph)
-%   - Contrast with filter-based: graph retains full trajectory, enables global consistency
+Most SLAM systems are structured as a two-stage pipeline.
+The \emph{front end} processes raw sensor data to extract relative pose
+constraints — through scan matching, visual feature tracking, or IMU
+integration — and identifies loop closure candidates.
+The \emph{back end} takes these constraints as input and optimises the full
+trajectory and map for global consistency, typically by solving a nonlinear
+least-squares problem over a pose or factor graph.
+In contrast to filter-based methods, which process measurements sequentially
+and discard past information, graph-based approaches retain the full trajectory
+and can enforce global consistency whenever a loop closure is detected.
 
 \subsection{Pose Graphs}
 

@@ -1,0 +1,353 @@
+\newcommand{\numalgorithms}{11}
+
+\chapter{Algorithm description}
+
+This chapter describes each of the \numalgorithms{} implemented algorithms evaluated in this thesis.
+They are grouped by method family. For each family a short description is provided,
+followed by a detailed description of each algorithm. Table~\ref{tab:algo_overview}
+lists the algorithms with used sensors and method families.
+
+\begin{table}[H]
+\centering
+\caption{Evaluated algorithms overview}
+\label{tab:algo_overview}
+\begin{tabular}{clll}
+\toprule
+\textbf{\#} & \textbf{Algorithm} & \textbf{Sensors} & \textbf{Method family} \\
+\midrule
+1  & EKF Dead Reckoning    & Wheel + IMU        & Sensor fusion \\
+2  & KISS-ICP              & LiDAR              & LiDAR odometry \\
+3  & MOLA Odometry         & LiDAR              & LiDAR odometry \\
+4  & Cartographer 2D       & LiDAR (2D scan)    & 2D LiDAR SLAM \\
+5  & GMapping              & LiDAR (2D scan)    & 2D LiDAR SLAM \\
+6  & SLAM Toolbox          & LiDAR (2D scan)    & 2D LiDAR SLAM \\
+7  & RTABMap (LiDAR)       & LiDAR              & 3D LiDAR SLAM \\
+8  & FAST-LIO2             & LiDAR + IMU        & LiDAR-IMU odometry \\
+9  & LIO-SAM               & LiDAR + IMU        & LiDAR-IMU SLAM \\
+10 & cuVSLAM               & Stereo camera      & Visual SLAM \\
+%11 & ORB-SLAM3 Stereo      & Stereo camera      & Visual SLAM \\
+%12 & ORB-SLAM3 Stereo+IMU  & Stereo + IMU       & Visual-inertial SLAM \\
+11 & RTABMap RGB-D         & Stereo camera      & Visual SLAM \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Sensor Fusion}
+
+Sensor fusion combines wheel odometry and IMU to estimate pose without building a map.
+It serves as a dead-reckoning baseline that shows how much drift accumulates without
+geometric correction.
+
+\subsection{EKF Dead Reckoning}
+
+EKF (Extended Kalman Filter) node from the \texttt{robot\_localization} ROS2 package fuses wheel
+odometry and IMU data to estimate the robot's pose without any geometric map.
+
+A Kalman filter tracks a state (position, orientation, velocity) and its uncertainty,
+updating the estimate whenever a new measurement arrives. The extended version used in this thesis
+linearises the nonlinear motion model at each step. The filter alternates between two steps. In the prediction step, wheel odometry and
+IMU propagate the state forward and increase uncertainty. In the correction step, the
+incoming measurement reduces uncertainty by weighting the prediction against the sensor
+reading.
+
+In practice, dead reckoning accumulates drift from wheel slip and noisy IMU data.
+Without a geometric map or loop closure, errors grow unboundedly over time.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{LiDAR Odometry}
+
+LiDAR odometry methods estimate the motion of the robot by aligning consecutive LiDAR scans
+using the Iterative Closest Point (ICP) algorithm. Each new scan is compared to a local map of the previous few scans.
+The best-fitting transformation is taken as the pose change.
+
+These methods do not build a global map and do not detect loop closures, which
+leads estimation error to accumulate proportionally to travelled distance.
+
+LiDAR odometry is computationally efficient, simple to configure, and works without
+visual features. It serves as a baseline: methods that add loop closure or IMU fusion
+should outperform it especially on longer trajectories.
+
+Two algorithms evaluated from this family are: KISS-ICP and MOLA Odometry.
+
+\subsection{KISS-ICP}
+
+KISS-ICP~\cite{vizzo2023kissicp} (Keep It Small and Simple ICP) uses point-to-point matching. It finds the
+closest point pairs between the scan and the local map, then computes the rotation and
+translation that minimises their distance. Most parameters are set adaptively, so no
+manual tuning is needed. It was published in 2022 by researchers at the University of Bonn.
+
+\subsection{MOLA Odometry}
+
+MOLA~\cite{mola_docs} (Modular Optimization framework for Localization and mApping) was
+developed at the University of Almería.
+Only its LiDAR odometry component
+(\texttt{mola\_lidar\_odometry}) was used here.
+
+Instead of point-to-point matching, MOLA uses a combination of point-to-plane ICP and an
+NDT-like map representation. The local map stores points organised into voxels, and each
+voxel accumulates a local normal distribution. Scan matching minimises the distance from
+each incoming point to the nearest surface in the voxel map, which is more robust than
+point-to-point matching on flat walls and floors where points can slide along surfaces
+without incurring a large point-to-point residual. Older scans are discarded as the robot
+moves to limit memory usage.
+MOLA is built as a modular pipeline, which makes components easy to swap but requires more
+configuration than KISS-ICP.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{2D LiDAR SLAM}
+
+2D LiDAR SLAM is designed for planar laser scanners that produce a single
+horizontal sweep of range measurements. Representing the environment as a
+horizontal plane reduces the pose estimation problem from 6-DoF to 3-DoF
+($x$, $y$, $\theta$). This simplification lowers computational cost and is a
+reasonable assumption for wheeled robots on flat floors, but it discards all
+height information. Any vertical structures are
+invisible to the 2D map, the occupancy grid only captures the floor-plane
+cross-section of the environment. For this reason 2D SLAM is unsuitable when
+full spatial reconstruction is needed or when the robot operates on uneven
+terrain. The TurtleBot3 platform evaluated in this thesis is a wheeled robot
+operating on a flat floor, so the planar LiDAR is sufficient for SLAM application.
+
+The simulation used in this thesis does not have a 2D laser scanner, only a point cloud from a
+3D LiDAR. The lack of 2D LiDAR in simulation is caused by computational limitations.
+Data from 3D LiDAR was processed offline: one horizontal ring was extracted
+from each 3D scan and saved into a separate pre-processed bag. All three 2D
+SLAM algorithms read from this bag.
+
+Two algorithmic approaches are used. Cartographer and SLAM Toolbox both build
+pose graphs and run global optimisation when a loop closure is detected.
+GMapping takes a different approach using a particle filter, where each
+particle carries its own map.
+
+\subsection{Google Cartographer 2D}
+
+Cartographer 2D~\cite{hess2016cartographer} was developed by Google and uses a two-stage architecture.
+The local stage matches each incoming scan against a small occupancy submap. 
+Once a submap is complete it is frozen and
+becomes a node in the pose graph. The global stage searches for loop closures
+between frozen submaps using a branch-and-bound matcher, which is globally optimal.
+Accepted loop closures are added as edges and the pose graph is then
+optimised. The final map is a single occupancy grid assembled from all submaps.
+
+\subsection{SLAM Toolbox}
+
+SLAM Toolbox~\cite{macenski2021slamtoolbox} was developed by Steve Macenski and is the recommended 2D SLAM
+solution for ROS\,2 Navigation2. Its defining feature is lifelong mapping:
+the pose graph and map can be serialised to disk and resumed in a later
+session, which makes it well suited to large environments that cannot be
+mapped in a single run.
+
+Scan matching uses a correlation-based matcher that evaluates a grid of
+candidate poses to find the best alignment. Unlike Cartographer's
+branch-and-bound approach, this can get stuck in local minima, making loop
+closure more sensitive to tuning and environment geometry.
+
+\subsection{GMapping}
+
+GMapping~\cite{grisetti2007gmapping} is a Rao-Blackwellized particle
+filter SLAM, where each particle represents a trajectory hypothesis and
+carries its own occupancy grid map. Each particle is weighted by
+how well the incoming scan fits its map. Low-weight particles are discarded
+and high-weight ones are duplicated. 
+% GMapping improves on the basic particle
+% filter by computing a better proposal distribution that takes the latest scan
+% into account before resampling, which reduces the number of particles needed.
+
+There is no explicit loop closure. When the robot revisits a known area,
+particle weights naturally shift toward poses consistent with the existing map,
+which corrects the trajectory. This makes GMapping more tolerant of
+repetitive environments where a correlation-based matcher might commit to a
+false loop, but it also limits correction ability on long trajectories.
+
+GMapping officially targets ROS\,1. The ROS\,2 port used here was compiled
+from source against the \texttt{openslam\_gmapping} library.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{3D LiDAR SLAM}
+
+3D LiDAR SLAM builds maps from the full point cloud without discarding spatial information.
+It is the right choice when the environment cannot be described by a single horizontal
+cross-section.
+
+The richer map also enables better visualisation. A 3D point cloud can be rendered from
+any viewpoint and coloured by height or intensity, which makes it easy to assess map
+quality. Occupancy grids from 2D SLAM show only a top-down floor plan and lose most
+spatial detail.
+
+3D LiDAR SLAM is standard in domains where full spatial awareness is required.
+In autonomous driving, the car moves through a complex environment of pedestrians,
+buildings, trees and vehicles that a 2D map cannot represent.
+Aerial robots and UAVs operate in full 3D space and cannot assume any floor plane.
+Inspection robots mapping industrial facilities or underground mines need vertical
+structure to understand their environment. In all these cases 3D SLAM is used rather
+than the floor-plan-only approach of 2D methods.
+
+\subsection{RTABMap (LiDAR)}
+
+RTABMap~\cite{labbe2019rtabmap} (Real-Time Appearance-Based Mapping) is a graph-based SLAM
+system developed at Université de Sherbrooke. Pose estimates come from ICP-based scan
+matching against a local point cloud map. The pose graph is globally optimised whenever
+a loop closure is detected.
+
+Loop closure detection is appearance-based. The system compares descriptors of the
+current scan against all stored nodes in the map, not just nearby ones. This means a
+revisit can be detected even after a long detour, which proximity-based methods would
+miss.
+
+To keep computation bounded, memory is split into Working Memory (WM) and Long-Term
+Memory (LTM). When processing time exceeds a set threshold, the least-visited nodes
+are moved to LTM. They are only retrieved when a loop closure candidate matches them.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Tightly-Coupled LiDAR-IMU}
+
+Like the 3D LiDAR SLAM methods in the previous section, these algorithms work with full
+3D point clouds. The difference is that an IMU is added as a second sensor and fused
+inside the same estimator rather than used separately.
+
+The IMU runs at much higher frequency than the LiDAR, typically 200\,Hz or more
+compared to 10--35\,Hz for the scanner. This high rate serves two purposes. First,
+the IMU predicts the robot's motion between LiDAR scans, giving the scan matcher a
+good initial pose and reducing the search space. Second, since the LiDAR accumulates
+points over roughly 30\,ms while the robot is moving,
+those points are distorted because points acquired at the start of the scan
+are shifted relative to points at the end.
+The IMU timestamps allow each point to be corrected back to a common reference time,
+a process called deskewing. Without it, the effective point cloud is blurred and scan
+matching degrades.
+
+The LiDAR provides the complementary correction: it measures the environment with
+high geometric accuracy and uses that to estimate and remove the IMU's accumulated drift. 
+Neither sensor alone is sufficient: the IMU drifts too fast without
+correction, and the LiDAR alone cannot compensate for motion distortion within a scan.
+
+Two systems are evaluated. FAST-LIO2 is an odometry-only system with no loop closure.
+LIO-SAM adds loop closure on top of the same tight-coupling approach.
+
+\subsection{FAST-LIO2}
+
+FAST-LIO2~\cite{xu2022fastlio2} was developed at the HKU-MARS laboratory. It
+registers raw LiDAR points directly to the map. No feature extraction step is
+needed. This makes it work well with LiDARs that have a small field of view or
+non-repetitive scanning patterns, where feature-based methods fail.
+
+The estimator is an iterated Extended Kalman Filter (iEKF). It tracks robot pose,
+velocity, and IMU biases. When a new scan arrives, each point is matched to its
+nearest neighbours in the map. A local plane is fitted to those neighbours. The
+distance from the point to the plane is the residual. This residual drives the
+iEKF update, correcting both pose and IMU biases in one step.
+
+The map is stored in an incremental k-d tree (ikd-Tree). New points can be
+inserted and deleted without rebuilding the structure. This keeps search fast as
+the map grows.
+
+\subsection{LIO-SAM}
+
+LIO-SAM~\cite{shan2020liosam} was developed at MIT and Stevens Institute of
+Technology. It uses a factor graph that combines IMU preintegration, LiDAR
+odometry, loop closure, and optionally GPS. When a loop closure is detected, the
+graph is globally optimised, correcting drift across the entire trajectory.
+
+Scan matching is feature-based. Each LiDAR scan is organised into rings,
+circular sweeps at different elevation angles. For each point, the algorithm
+checks how much the distances to neighbouring points on the same ring vary. On a
+flat surface the neighbouring distances are similar, so the point is classified
+as a planar feature. At an edge or corner the distances change sharply on one
+side, so the point is classified as an edge feature. These features are matched
+against a local map built from recent keyframes.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Visual SLAM}
+
+Visual SLAM estimates the trajectory from image sequences rather than from range
+measurements. Instead of measuring distance directly, these methods infer depth from stereo 
+geometry.
+Two cameras observe the same point from slightly different angles. The horizontal shift
+between the two images (disparity) gives the distance through triangulation.
+
+The core pipeline extracts keypoints, matches them across frames, and estimates robot's
+motion from the 3D positions of those matches. This process is called feature-based visual odometry.
+Loop closure works similarly: if the current frame shares many matched features with a past frame,
+the system recognises that the robot has returned to a known place and corrects the accumulated drift.
+
+The fundamental weakness of this approach is texture dependency. Every step
+(keypoint extraction, stereo matching, loop closure) requires visible, distinctive
+patterns on surfaces. Flat, uniformly coloured walls produce few or no keypoints,
+and the system loses tracking.
+
+Three systems are evaluated, all using a stereo camera pair.
+
+\subsection{cuVSLAM}
+
+cuVSLAM~\cite{cuvslam_docs} is NVIDIA's visual SLAM library, distributed as part of the Isaac
+ROS ecosystem. It runs the entire pipeline on an NVIDIA GPU, which allows dense feature
+detection and tracking at rates that would be too slow on CPU. Stereo
+matching produces depth for each tracked feature via triangulation. IMU measurements are
+fused with the visual estimates to improve tracking stability and robustness to motion blur.
+Pose increments are estimated from the tracked 3D feature positions and IMU data, and a
+pose graph back-end with loop closure maintains global consistency. Because the library
+is closed-source, internal parameters beyond those exposed through the ROS\,2 interface
+are not accessible. The system requires a compatible NVIDIA GPU to run.
+
+%\subsection{ORB-SLAM3 Stereo}
+%
+%ORB-SLAM3~\cite{campos2021orbslam3} is built on ORB-SLAM2 and used here in stereo
+%configuration. The same ORB features are used for all tasks: tracking, mapping,
+%relocalization, and loop closing. ORB are FAST corners extracted at multiple scale
+%levels with a 256-bit descriptor. They are fast to compute and invariant to rotation
+%and viewpoint changes.
+%
+%The system runs three parallel threads. The tracking thread computes the pose of each
+%incoming frame by minimising reprojection error against the active map. The local
+%mapping thread adds keyframes and culls redundant map points and keyframes. It refines
+%the map by running local bundle adjustment over a local window of keyframes. The loop
+%and map merging thread detects common regions between the active map and all stored
+%maps using DBoW2. If the common region belongs to the active map, loop closing is
+%performed and the Essential Graph is optimised. If it belongs to a different map, both
+%maps are merged into a single active map.
+%
+%When tracking is lost, the system first tries to relocalize in all stored maps. If
+%relocalization fails, the active map is stored and a new map is initialized from
+%scratch.
+
+\subsection{RTABMap RGB-D}
+
+RTABMap~\cite{labbe2019rtabmap} in RGB-D mode reuses the same graph SLAM back-end as the LiDAR variant but
+uses a visual front-end for loop closure. In this evaluation the depth image comes from stereo
+matching on the Hawk camera. Wheel odometry provides the motion prior between frames. Loop
+closure candidates are identified both by spatial proximity in the pose graph and by
+bag-of-words matching of visual features extracted from the RGB image. Accepted loop
+closures trigger a global graph optimisation that corrects the accumulated drift. The
+accumulated map is a dense 3D point cloud built by projecting depth images into the world
+frame at each pose.
+% The same WM/LTM memory management applies.
+
+%% ─────────────────────────────────────────────────────────────────────────────
+%\section{Visual-Inertial SLAM}
+%
+%Visual-inertial SLAM extends stereo visual SLAM by adding an IMU to the estimator.
+%The camera still provides depth through stereo triangulation, but the IMU contributes
+%high-frequency rotation and acceleration measurements between frames. This addresses
+%two weaknesses of stereo-only systems. Scale estimation is more reliable because the
+%IMU constrains metric motion independently of the baseline. Brief tracking losses can
+%be bridged by IMU prediction while the visual front-end searches for features to
+%re-initialise.
+%
+%The IMU must run at a high rate for the preintegration to be accurate. Low IMU
+%frequency causes the same problems as in the LiDAR-IMU case: inaccurate motion
+%prediction and unreliable deskewing. The system also requires an initialisation phase
+%where gravity direction, initial velocity, and IMU biases are estimated at the same
+%time. Enough translational motion is needed to distinguish gravity from linear
+%acceleration. A robot moving slowly in a straight line may fail to initialise.
+%
+%\subsection{ORB-SLAM3 Stereo+IMU}
+%
+%ORB-SLAM3 Stereo+IMU works like the stereo variant with IMU added to the estimator.
+%The state is expanded to include body velocity and IMU biases. Inertial residuals are
+%minimised jointly with visual reprojection errors using MAP estimation.
+%
+%Initialisation runs in three steps: vision-only, inertial-only, then joint
+%visual-inertial MAP refinement. It achieves 5\% scale error in 2 seconds and 1\% in
+%15 seconds. When tracking is briefly lost, the IMU predicts the body state and
+%projects map points to search for matches and recover tracking.

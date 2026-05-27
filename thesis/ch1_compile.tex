@@ -1,0 +1,105 @@
+\documentclass[oneside,openany]{mgr}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[english]{babel}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{float}
+\usepackage{silence}
+\WarningFilter{caption}{Unknown document class}
+\usepackage[format=plain,labelfont=bf,textfont=normal]{caption}
+\usepackage{subcaption}
+\usepackage{enumitem}
+\usepackage[nopatch=footnote]{microtype}
+\usepackage{parskip}
+\usepackage{geometry}
+\usepackage{setspace}
+\usepackage{siunitx}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{colortbl}
+\usepackage{tabularx}
+\usepackage{listings}
+\usepackage[colorlinks=true,linkcolor=black,citecolor=black,urlcolor=blue,backref=page]{hyperref}
+\renewcommand{\backref}[1]{}
+\renewcommand{\backrefsep}{\,}
+\renewcommand{\backreftwosep}{\,}
+\renewcommand{\backreflastsep}{\,}
+\renewcommand{\backrefalt}[4]{%
+  \ifcase #1\relax
+  \else
+    \begingroup
+      \let\oldhyperlink\hyperlink
+      \def\hyperlink##1##2{\oldhyperlink{##1}{\small\color{blue}$\uparrow$}}%
+      #2%
+    \endgroup
+  \fi
+}
+
+\DeclareMathOperator*{\argmin}{arg\,min}
+
+\definecolor{hdr}{RGB}{189,215,238}
+\definecolor{rowalt}{RGB}{242,242,242}
+\definecolor{grprow}{RGB}{220,230,242}
+\definecolor{tier1}{RGB}{198,224,180}
+\definecolor{tier2}{RGB}{255,230,153}
+\definecolor{tier3}{RGB}{255,199,206}
+
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
+
+\lstdefinestyle{mystyle}{
+    backgroundcolor=\color{backcolour},
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{magenta},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=false,
+    breaklines=true,
+    captionpos=b,
+    keepspaces=true,
+    numbers=left,
+    numbersep=5pt,
+    showspaces=false,
+    showstringspaces=false,
+    showtabs=false,
+    tabsize=2
+}
+\lstset{style=mystyle}
+
+\graphicspath{{../maps/comparisons/}{../maps/individual/}{../maps/misc/}{../maps/individual_bag6/}}
+
+\sisetup{
+  table-number-alignment = center,
+  table-figures-decimal  = 3,
+}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\includeonly{chapters/ch1_introduction}
+\begin{document}
+
+
+
+\include{chapters/ch1_introduction}
+\include{chapters/ch2_theoretical}
+\include{chapters/ch3_algorithms}
+\include{chapters/ch4_experimental}
+\include{chapters/ch5_conclusions}
+
+\bibliographystyle{unsrturl}
+\addcontentsline{toc}{chapter}{Bibliography}
+\bibliography{bibliography}
+
+
+
+\end{document}

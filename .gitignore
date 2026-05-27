@@ -1,0 +1,9 @@
+# Ignore everything by default
+*
+
+# Allow thesis .tex sources
+!thesis/
+!thesis/*.tex
+!thesis/chapters/
+!thesis/chapters/*.tex
+!.gitignore

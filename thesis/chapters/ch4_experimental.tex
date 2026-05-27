@@ -1,0 +1,99 @@
+\chapter{Experimental Study}
+
+This chapter presents the experimental configuration, the simulation environment,
+the evaluation methodology, and the results obtained by the eleven evaluated SLAM
+algorithms.
+All experiments were conducted on a single dataset to ensure full comparability
+between algorithms.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Experimental Setup}
+
+\subsection{Robot Platform}
+
+The experimental platform is the TurtleBot3 Burger, a small differential-drive
+mobile robot designed for indoor navigation.
+It has a maximum linear velocity of $0.22$\,m/s and carries its sensors and
+onboard compute in a compact, lightweight frame.
+The TurtleBot3 Burger is a widely used research platform and is representative
+of the class of small ground robots that rely on SLAM for autonomous operation
+in GPS-denied environments.
+
+\subsection{Sensor Configuration}
+
+The robot is equipped with four sensors that together cover the modalities
+evaluated in this thesis.
+
+\begin{itemize}
+  \item \textbf{3D LiDAR.} A rotating 3D LiDAR operating at $33.6$\,Hz
+        (scan period $\approx 30$\,ms), producing dense point clouds published
+        as \texttt{sensor\_msgs/PointCloud2}.
+
+  \item \textbf{Stereo camera.} A Leopard Imaging LI-AR0234CS-NVIDIA Hawk
+        stereo camera with a $100$\,mm baseline, $1920 \times 1200$\,px
+        resolution per lens, and a $121.5^{\circ}$ horizontal field of view, recording
+        at $60$\,fps.
+        A depth map at $640 \times 360$\,px is also provided.
+
+  \item \textbf{IMU.} An inertial measurement unit integrated with the camera
+        module, publishing linear acceleration and angular velocity at
+        approximately $62$\,Hz as \texttt{sensor\_msgs/Imu}.
+
+  \item \textbf{Wheel odometry.} Pose increments derived from motor encoders,
+        published as \texttt{nav\_msgs/Odometry}.
+\end{itemize}
+
+\subsection{Software Framework}
+
+All algorithms are executed under ROS\,2 Jazzy on the same hardware.
+Sensor data are replayed from a recorded rosbag at real-time speed, ensuring
+identical temporal conditions for every algorithm.
+
+Two preprocessing steps were applied where required by specific algorithms.
+For the 2D LiDAR SLAM methods (GMapping, Cartographer~2D, and SLAM~Toolbox),
+the 3D point cloud was projected onto a planar 2D scan by retaining only points
+within a fixed height band around the robot.
+For LIO-SAM, each point in the cloud was assigned a ring index derived from its
+elevation angle, as the algorithm requires an organised point cloud with
+per-point ring information.
+All other algorithms consumed the raw sensor topics without modification.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Simulation Environment}
+
+\subsection{Environment Description}
+
+\subsection{Dataset Recording}
+
+\subsection{Ground Truth Extraction}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Evaluation Methodology}
+
+\subsection{Trajectory Accuracy}
+
+\subsection{Map Quality}
+
+\subsection{Computational Cost}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Results}
+
+\input{chapters/table_bag6}
+
+\subsection{Trajectory Accuracy}
+
+\subsection{Map Quality}
+
+\subsection{Computational Cost}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Discussion}
+
+\subsection{LiDAR-Based Methods}
+
+\subsection{LiDAR-IMU Methods}
+
+\subsection{Visual Methods}
+
+\subsection{Failure Cases}

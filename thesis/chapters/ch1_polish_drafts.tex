@@ -1,0 +1,287 @@
+% ─────────────────────────────────────────────────────────────────────────────
+% WERSJA POLSKA — ROZDZIAŁ 1 — WERSJE ROBOCZE
+% Wszystkie wersje mają identyczną strukturę klasycznego wstępu:
+%   1. Definicja i motywacja SLAM
+%   2. Trudność problemu
+%   3. Ewolucja historyczna
+%   4. Luka badawcza
+%   5. Cel i zakres pracy
+%   6. Struktura pracy
+% Różnią się wyłącznie stylem i rejestrem językowym.
+% ─────────────────────────────────────────────────────────────────────────────
+
+
+% ═════════════════════════════════════════════════════════════════════════════
+% WERSJA A — formalny, klasyczny styl akademicki
+% ═════════════════════════════════════════════════════════════════════════════
+
+\chapter{Wstęp}
+
+Jednym z~fundamentalnych problemów robotyki mobilnej, sformalizowanym w~latach
+dziewięćdziesiątych XX~wieku, jest jednoczesna lokalizacja i~mapowanie
+(ang.~\textit{Simultaneous Localisation and Mapping}, SLAM)~\cite{leonard1991mobile}.
+Problem ten dotyczy zdolności robota do budowania spójnej mapy nieznanego środowiska
+przy jednoczesnym wyznaczaniu własnej pozycji w~tej mapie.
+SLAM stanowi warunek konieczny autonomicznej nawigacji bez sygnału GPS,
+a~jego rozwiązanie jest niezbędne w~szerokim spektrum zastosowań ---
+od pojazdów logistyki magazynowej i~dronów inspekcyjnych po roboty usługowe
+działające w~przestrzeniach publicznych.
+
+Trudność problemu wynika z~wzajemnej zależności jego dwóch składowych.
+Dokładne budowanie mapy wymaga znajomości aktualnej pozycji robota,
+natomiast precyzyjna lokalizacja wymaga spójnej mapy, względem której
+pozycja ta może być wyznaczona.
+Rozwiązywanie obu zadań jednocześnie, w~czasie rzeczywistym i~na podstawie
+zaszumionych danych sensorycznych, pozostaje wyzwaniem algorytmicznym
+i~obliczeniowym nawet po kilku dekadach intensywnych badań.
+
+Od momentu formalnego sformułowania problemu dziedzina przeszła znaczącą ewolucję.
+Pierwsze podejścia oparte na rozszerzonym filtrze Kalmana udowodniły
+wykonalność koncepcji, lecz ich kwadratowa złożoność obliczeniowa ograniczała
+zastosowanie do małych środowisk.
+Zastosowanie filtrów cząsteczkowych, w~szczególności filtra Rao-Blackwellized,
+umożliwiło obsługę większych map przy zachowaniu rozsądnego kosztu obliczeniowego.
+Przełomem okazało się jednak grafowe sformułowanie SLAM, w~którym trajektoria
+robota i~wiązania sensoryczne reprezentowane są jako graf podlegający globalnej
+optymalizacji --- podejście to dominuje w~nowoczesnych implementacjach.
+Równolegle rozszerzała się gama obsługiwanych sensorów: od dwuwymiarowych
+skanerów laserowych, przez trójwymiarowy LiDAR, do kamer i~układów z~ciasno
+sprzężoną centralą inercyjną (IMU).
+
+Efektem tych postępów jest dziś bogaty ekosystem implementacji open-source,
+lecz ich obiektywne porównanie pozostaje utrudnione.
+Opublikowane benchmarki dotyczą zazwyczaj jednej rodziny metod lub jednego
+środowiska i~rzadko przekładają się na odmienne konfiguracje sprzętowe.
+Brakuje ujednoliconego zestawienia obejmującego różne modalności sensoryczne
+i~rodziny algorytmów testowanych w~identycznych warunkach, co sprawia,
+że dobór właściwego algorytmu dla konkretnej platformy sprzętowej pozostaje
+zadaniem obarczonym znaczną niepewnością.
+
+\section{Cel i~zakres pracy}
+
+Celem niniejszej pracy jest systematyczna ocena i~porównanie algorytmów SLAM
+różnych rodzin metod i~modalności sensorycznych, przeprowadzone w~jednolitych,
+w~pełni kontrolowanych warunkach eksperymentalnych.
+Ocenę przeprowadzono na robocie mobilnym TurtleBot3~Burger wyposażonym
+w~trójwymiarowy skaner LiDAR, kamerę stereo, centralę inercyjną IMU
+oraz enkodery odometrii kołowej.
+Do badań wybrano jedenaście algorytmów obejmujących fuzję sensoryczną,
+odometrię LiDAR, SLAM~2D i~3D na bazie LiDAR-u, ciasno sprzężoną odometrię
+i~SLAM LiDAR-IMU oraz wizyjny SLAM.
+
+Eksperymenty przeprowadzono na jednym zbiorze danych zarejestrowanym
+w~symulowanym środowisku magazynowym w~NVIDIA~Isaac~Sim,
+który dostarcza dokładnych pozycji referencyjnych (\textit{ground truth})
+do obiektywnej ewaluacji.
+Wspólnym środowiskiem uruchomieniowym dla wszystkich algorytmów był
+ROS\,2 (\textit{Robot Operating System~2}).
+
+Dokładność trajektorii oceniana jest miarami ATE i~RPE
+odniesionymi do pozycji referencyjnych symulatora.
+Jakość map 3D wyznaczana jest odległością Chamfera i~miarą F-score,
+a~koszt obliczeniowy --- średnim obciążeniem procesora i~szczytowym
+zużyciem pamięci RAM.
+
+\section{Struktura pracy}
+
+\begingroup
+\setlength{\parskip}{2pt}
+\setlength{\parindent}{1.5em}
+
+Rozdział~2 zawiera podstawy teoretyczne niezbędne do zrozumienia omawianych
+algorytmów, obejmując nawigację w~robotyce mobilnej, sensory, reprezentacje map,
+rejestrację chmur punktów, filtracyjną i~grafową estymację stanu, preintegrację
+IMU, podstawy wizyjnego SLAM oraz metryki ewaluacji.
+
+Rozdział~3 opisuje każdy z~jedenastu ocenianych algorytmów pogrupowanych
+według rodziny metod.
+
+Rozdział~4 przedstawia konfigurację eksperymentalną, zbiór danych oraz wyniki
+wszystkich jedenastu algorytmów w~zakresie dokładności trajektorii, jakości
+mapy i~kosztu obliczeniowego.
+
+Rozdział~5 podsumowuje wyniki eksperymentów, formułuje zalecenia dotyczące
+doboru algorytmu SLAM do strukturyzowanych środowisk wewnętrznych oraz wskazuje
+kierunki dalszych badań.
+
+\endgroup
+
+
+% ═════════════════════════════════════════════════════════════════════════════
+% WERSJA B — bezpośredni, rzeczowy, technicznie precyzyjny
+% ═════════════════════════════════════════════════════════════════════════════
+
+\chapter{Wstęp}
+
+Autonomiczny robot mobilny poruszający się bez sygnału GPS musi rozwiązywać dwa
+zadania jednocześnie: budować mapę nieznanego środowiska i~wyznaczać w~niej
+własną pozycję.
+Problem ten, znany jako jednoczesna lokalizacja i~mapowanie
+(ang.~\textit{Simultaneous Localisation and Mapping},
+SLAM)~\cite{leonard1991mobile}, jest kluczowym elementem systemów nawigacji
+robotów w~magazynach, szpitalach i~innych środowiskach pozbawionych
+zewnętrznej infrastruktury pozycjonowania.
+
+Zasadnicza trudność SLAM polega na tym, że oba zadania są od siebie zależne:
+mapa jest potrzebna do lokalizacji, a~lokalizacja --- do budowy mapy.
+Rozwiązanie tego problemu w~czasie rzeczywistym, przy zaszumionych danych
+sensorycznych i~ograniczonych zasobach obliczeniowych robota,
+od dekad stanowi aktywny obszar badań.
+
+Podejścia algorytmiczne ewoluowały wyraźnie w~ciągu ostatnich trzydziestu lat.
+Rozszerzony filtr Kalmana był pierwszą praktyczną metodą, lecz rósł kwadratowo
+z~liczbą elementów mapy, co ograniczało jego zastosowanie.
+Filtry cząsteczkowe poprawiły skalowalność i~umożliwiły obsługę nieliniowych
+modeli ruchu.
+Dominującym podejściem stało się grafowe SLAM, w~którym pozycje robota
+i~wiązania sensoryczne tworzą graf optymalizowany globalnie --- umożliwia ono
+efektywne wykrywanie i~zamykanie pętli nawet na długich trajektoriach.
+Obsługiwane sensory rozszerzyły się od płaskich skanerów 2D do LiDAR-u 3D,
+kamer stereo i~układów LiDAR-IMU ze sprzężeniem ciasnym.
+
+Pomimo szerokiej dostępności implementacji open-source ich rzetelne porównanie
+jest trudne --- istniejące benchmarki obejmują zwykle jedną rodzinę algorytmów
+lub jeden typ sensora i~nie przekładają się na inne konfiguracje sprzętowe.
+Brakuje jednego zestawienia, które pozwoliłoby inżynierowi wybrać algorytm SLAM
+na podstawie pomiarów uzyskanych w~tych samych warunkach.
+
+\section{Cel i~zakres pracy}
+
+Celem pracy jest ocena i~porównanie jedenastu algorytmów SLAM różnych rodzin
+i~modalności sensorycznych w~identycznych, kontrolowanych warunkach.
+Eksperymenty przeprowadzono na robocie TurtleBot3~Burger (LiDAR 3D, kamera stereo,
+IMU, enkodery kół).
+Oceniane algorytmy obejmują fuzję sensoryczną, odometrię LiDAR, SLAM~2D i~3D
+na bazie LiDAR-u, ciasno sprzężoną odometrię i~SLAM LiDAR-IMU oraz wizyjny SLAM.
+
+Dane pochodzą z~symulowanego magazynu w~NVIDIA~Isaac~Sim, który dostarcza
+dokładnych pozycji referencyjnych i~gwarantuje powtarzalność warunków.
+Wszystkie algorytmy uruchomiono w~środowisku ROS\,2.
+
+Trajektorie oceniane są miarami ATE i~RPE, mapy 3D --- odległością Chamfera
+i~F-score, a~koszt obliczeniowy --- średnim obciążeniem CPU i~szczytowym
+zużyciem RAM.
+
+\section{Struktura pracy}
+
+\begingroup
+\setlength{\parskip}{2pt}
+\setlength{\parindent}{1.5em}
+
+Rozdział~2 zawiera podstawy teoretyczne: nawigację w~robotyce mobilnej, sensory,
+reprezentacje map, rejestrację chmur punktów, filtracyjną i~grafową estymację
+stanu, preintegrację IMU, podstawy wizyjnego SLAM oraz metryki ewaluacji.
+
+Rozdział~3 opisuje każdy z~jedenastu ocenianych algorytmów pogrupowanych
+według rodziny metod.
+
+Rozdział~4 przedstawia konfigurację eksperymentalną, zbiór danych oraz wyniki
+wszystkich jedenastu algorytmów: dokładność trajektorii, jakość mapy
+i~koszt obliczeniowy.
+
+Rozdział~5 podsumowuje wyniki, formułuje zalecenia dotyczące doboru algorytmu SLAM
+do strukturyzowanych środowisk wewnętrznych i~wskazuje kierunki dalszych badań.
+
+\endgroup
+
+
+% ═════════════════════════════════════════════════════════════════════════════
+% WERSJA C — płynna narracja, zdania złożone, styl eseistyczny
+% ═════════════════════════════════════════════════════════════════════════════
+
+\chapter{Wstęp}
+
+Aby robot mobilny mógł poruszać się autonomicznie w~nieznanym środowisku,
+musi równocześnie orientować się w~przestrzeni i~budować jej model ---
+bez żadnej zewnętrznej infrastruktury, bez sygnału GPS, bez wcześniej
+przygotowanej mapy.
+To pozornie proste wymaganie kryje w~sobie jeden z~najtrudniejszych problemów
+robotyki mobilnej, sformalizowany w~latach dziewięćdziesiątych XX~wieku
+jako jednoczesna lokalizacja i~mapowanie
+(ang.~\textit{Simultaneous Localisation and Mapping},
+SLAM)~\cite{leonard1991mobile}.
+Znalazło ono zastosowanie wszędzie tam, gdzie robot działa samodzielnie:
+w~magazynach, szpitalach, na placach budowy i~w~obszarach niedostępnych dla ludzi.
+
+U~podstaw trudności SLAM leży błędne koło: precyzyjna mapa środowiska wymaga
+dokładnych pozycji robota w~trakcie jej tworzenia, a~dokładna lokalizacja robota
+wymaga spójnej mapy, względem której pozycja jest wyznaczana.
+Rozwiązanie tego wzajemnego uwikłania w~czasie rzeczywistym, przy nieuchronnym
+szumie sensorycznym i~ograniczonej mocy obliczeniowej pokładowego komputera,
+nie jest trywialne i~mimo kilku dekad intensywnych badań nadal pozostaje
+aktywnym obszarem pracy naukowej.
+
+Historia algorytmów SLAM jest historią kolejnych przełamywań ograniczeń.
+Rozszerzony filtr Kalmana, dominujący w~pierwszej fazie badań, dostarczał
+spójnych estymacji, lecz jego złożoność rosła kwadratowo z~liczbą elementów mapy,
+co czyniło go niepraktycznym w~dużych środowiskach.
+Filtry cząsteczkowe przyniosły lepszą skalowalność i~naturalną obsługę
+wielomodalnych rozkładów prawdopodobieństwa, stając się podstawą szeroko stosowanych
+systemów dwuwymiarowego SLAM.
+Grafowe sformułowanie problemu --- w~którym trajektoria i~wiązania sensoryczne
+tworzą sieć węzłów i~krawędzi podlegającą globalnej optymalizacji ---
+umożliwiło efektywne działanie na długich trajektoriach i~skuteczne zamykanie pętli,
+stając się dominującym paradygmatem nowoczesnych implementacji.
+Towarzyszył temu równoległy rozwój bazy sensorycznej: od płaskich skanerów
+laserowych 2D, przez bogate geometrycznie chmury punktów trójwymiarowego LiDAR-u,
+do kamer i~układów z~ciasno sprzężoną centralą inercyjną, które poprawiają
+odporność na dynamikę ruchu i~pozwalają korygować zniekształcenia pomiarów.
+
+Bogactwo dostępnych implementacji open-source rodzi jednak praktyczny problem.
+Każdy algorytm zaprojektowany jest pod konkretną kombinację sensorów, środowisk
+i~wymagań obliczeniowych, a~opublikowane benchmarki obejmują zwykle wąski wycinek
+tej przestrzeni --- jedną rodzinę metod, jeden typ sensora lub jedno środowisko
+testowe.
+Wyniki takich porównań rzadko przekładają się na odmienną konfigurację sprzętową,
+a~inżynier stający przed wyborem algorytmu dla swojej platformy dysponuje
+szczątkową i~trudno porównywalną wiedzą empiryczną.
+
+\section{Cel i~zakres pracy}
+
+Niniejsza praca ma na celu wypełnienie tej luki poprzez systematyczną ocenę
+i~porównanie jedenastu algorytmów SLAM obejmujących wszystkie główne rodziny
+metod i~modalności sensoryczne, przeprowadzone w~identycznych, w~pełni
+kontrolowanych warunkach eksperymentalnych.
+
+Badania przeprowadzono na robocie mobilnym TurtleBot3~Burger wyposażonym
+w~trójwymiarowy skaner LiDAR, kamerę stereo, centralę inercyjną IMU oraz
+enkodery odometrii kołowej --- platformie reprezentatywnej dla klasy małych
+robotów mobilnych, a~jednocześnie dostatecznie bogatej sensorycznie,
+by umożliwić testowanie wszystkich ocenianych rodzin algorytmów.
+Oceniane metody obejmują fuzję sensoryczną, odometrię LiDAR, SLAM~2D i~3D
+na bazie LiDAR-u, ciasno sprzężoną odometrię i~SLAM LiDAR-IMU oraz wizyjny SLAM.
+
+Dane wejściowe stanowi jeden zbiór nagrań z~symulowanego środowiska magazynowego
+w~NVIDIA~Isaac~Sim, który dostarcza dokładnych pozycji referencyjnych
+eliminując potrzebę zewnętrznego systemu pomiarowego i~zapewniając pełną
+powtarzalność warunków.
+Wszystkie algorytmy uruchomiono pod wspólnym środowiskiem ROS\,2.
+
+Ocena obejmuje dokładność trajektorii wyznaczaną miarami ATE i~RPE,
+jakość map 3D mierzoną odległością Chamfera i~miarą F-score,
+a~także koszt obliczeniowy wyrażony średnim obciążeniem procesora
+i~szczytowym zużyciem pamięci RAM.
+
+\section{Struktura pracy}
+
+\begingroup
+\setlength{\parskip}{2pt}
+\setlength{\parindent}{1.5em}
+
+Rozdział~2 zawiera podstawy teoretyczne niezbędne do zrozumienia omawianych
+algorytmów, obejmując nawigację w~robotyce mobilnej, sensory, reprezentacje map,
+rejestrację chmur punktów, filtracyjną i~grafową estymację stanu, preintegrację
+IMU, podstawy wizyjnego SLAM oraz metryki ewaluacji.
+
+Rozdział~3 opisuje każdy z~jedenastu ocenianych algorytmów pogrupowanych
+według rodziny metod.
+
+Rozdział~4 przedstawia konfigurację eksperymentalną, zbiór danych oraz wyniki
+wszystkich jedenastu algorytmów w~zakresie dokładności trajektorii, jakości
+mapy i~kosztu obliczeniowego.
+
+Rozdział~5 podsumowuje wyniki eksperymentów, formułuje zalecenia dotyczące doboru
+algorytmu SLAM do strukturyzowanych środowisk wewnętrznych oraz wskazuje kierunki
+dalszych badań.
+
+\endgroup

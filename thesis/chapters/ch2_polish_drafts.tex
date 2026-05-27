@@ -1,0 +1,901 @@
+% ─────────────────────────────────────────────────────────────────────────────
+% WERSJA POLSKA — ROZDZIAŁ 2 — WERSJE ROBOCZE
+% Wszystkie wersje mają identyczną strukturę sekcji.
+% Różnią się stylem:
+%   Wersja A — matematyczna: kluczowe równania i notacja formalna
+%   Wersja B — ogólna: konceptualna, przystępna, bez wzorów
+%   Wersja C — precyzyjna, minimalnie matematyczna: dokładna terminologia, bez wyprowadzeń
+% ─────────────────────────────────────────────────────────────────────────────
+
+
+% ═════════════════════════════════════════════════════════════════════════════
+% WERSJA A — matematyczna
+% ═════════════════════════════════════════════════════════════════════════════
+
+\chapter{Podstawy teoretyczne}
+
+Niniejszy rozdział prezentuje formalne podstawy algorytmów ocenianych w~pracy.
+Omówiono kolejno: podproblemy nawigacji mobilnej, sensory stosowane w~eksperymentach,
+reprezentacje map, metody rejestracji chmur punktów, filtracyjną i~grafową
+estymację stanu, preintegrację IMU oraz podstawy wizyjnego SLAM.
+Rozdział zamykają metryki ewaluacji używane w~rozdziale~4.
+
+\section{Nawigacja w~robotyce mobilnej}
+
+Nawigacja autonomiczna polega na celowym przemieszczaniu się robota w~środowisku.
+Klasycznie dekomponuje się ją na trzy powiązane podproblemy: zliczanie drogi
+(\textit{dead reckoning}), mapowanie i~lokalizację.
+SLAM łączy dwa ostatnie i~stanowi główny przedmiot niniejszej pracy.
+
+\subsection{Zliczanie drogi}
+
+Zliczanie drogi polega na szacowaniu pozy robota $\mathbf{x}_t \in SE(3)$
+poprzez całkowanie pomiarów odometrycznych lub sterowań:
+\begin{equation}
+    \mathbf{x}_t = \mathbf{x}_{t-1} \oplus \mathbf{u}_t,
+\end{equation}
+gdzie $\mathbf{u}_t$ jest przyrostem pozy, a~$\oplus$ oznacza złożenie
+w~grupie $SE(3)$.
+Błędy kolejnych przyrostów kumulują się, powodując narastający dryf pozycji
+bez żadnego mechanizmu korekcji.
+W~kompletnych systemach SLAM zliczanie drogi pełni rolę modelu predykcji.
+
+\subsection{Mapowanie}
+
+Mapowanie to zadanie wyznaczenia modelu przestrzennego $\mathbf{m}$ ze zbioru
+pomiarów $\mathbf{z}_{1:t}$ przy założeniu znanych poz $\mathbf{x}_{1:t}$:
+\begin{equation}
+    p(\mathbf{m} \mid \mathbf{z}_{1:t}, \mathbf{x}_{1:t}).
+\end{equation}
+Bez dokładnych estymacji pozycji robota kolejne pomiary nie mogą być
+spójnie wbudowane w~mapę.
+
+\subsection{Lokalizacja}
+
+Lokalizacja polega na wyznaczeniu rozkładu pozy robota $p(\mathbf{x}_t)$
+przy danej mapie $\mathbf{m}$ i~historii pomiarów.
+Globalną lokalizację (brak apriorycznej informacji o~pozycji) rozwiązuje
+m.in.\ metoda Monte Carlo, reprezentująca rozkład jako zbiór cząsteczek.
+Śledzenie pozy zakłada ciągłość ruchu i~aproksymuje rozkład gaussowsko.
+
+\subsection{SLAM}
+
+SLAM łączy mapowanie i~lokalizację, szacując jednocześnie trajektorię
+$\mathbf{x}_{1:t}$ i~mapę $\mathbf{m}$ ze strumienia pomiarów:
+\begin{equation}
+    p(\mathbf{x}_{1:t}, \mathbf{m} \mid \mathbf{z}_{1:t}, \mathbf{u}_{1:t}).
+\end{equation}
+W~podejściu \textit{online SLAM} marginalizuje się przeszłe pozy,
+szacując jedynie $p(\mathbf{x}_t, \mathbf{m})$.
+W~\textit{full SLAM} zachowuje się pełną trajektorię, co umożliwia
+globalną optymalizację po wykryciu pętli.
+
+\subsection{Aktywny SLAM}
+
+Aktywny SLAM steruje ruchem robota tak, by minimalizować niepewność mapy
+i~trajektorii, np.\ przez maksymalizację oczekiwanego przyrostu informacji.
+W~niniejszej pracy stosowany jest pasywny SLAM na nagranych danych,
+dlatego aktywny SLAM pozostaje poza zakresem rozważań.
+
+\section{Sensory}
+
+Zestaw sensorów determinuje, jakie dane są dostępne dla algorytmu SLAM.
+W~eksperymentach stosowano cztery typy sensorów, omówione poniżej.
+
+\subsection{LiDAR}
+
+LiDAR wyznacza odległości metodą czasu przelotu impulsu laserowego:
+\begin{equation}
+    d = \frac{c \cdot \Delta t}{2},
+\end{equation}
+gdzie $c$ jest prędkością światła, a~$\Delta t$ --- zmierzonym czasem
+przelotu.
+Wynikiem każdego obrotu głowicy jest chmura punktów $\mathcal{P} \subset \mathbb{R}^3$
+o~rozdzielczości kątowej rzędu $0{,}1$--$0{,}4°$ i~zasięgu do kilkudziesięciu metrów.
+Przy szybkim ruchu robota punkty rejestrowane na początku i~końcu obrotu
+odpowiadają różnym pozycjom głowicy, powodując zniekształcenie geometryczne
+(\textit{motion distortion}).
+
+\subsection{Kamera stereo}
+
+Głębokość punktu $Z$ wyznaczana jest ze stereoskopii na podstawie dysparycji $d$:
+\begin{equation}
+    Z = \frac{f \cdot B}{d},
+\end{equation}
+gdzie $f$ to ogniskowa, a~$B$ --- baza (odległość między obiektywami).
+Niepewność głębokości rośnie kwadratowo z~odległością.
+Kamery dostarczają informacji teksturowej przydatnej w~dopasowaniu cech wizyjnych,
+lecz są wrażliwe na warunki oświetleniowe.
+
+\subsection{IMU}
+
+Centrala inercyjna dostarcza pomiarów przyspieszenia $\tilde{\mathbf{a}} \in \mathbb{R}^3$
+i~prędkości kątowej $\tilde{\boldsymbol{\omega}} \in \mathbb{R}^3$ z~częstotliwością
+rzędu $200$~Hz, obarczonych biasem $\mathbf{b}$ i~szumem gaussowskim $\boldsymbol{\eta}$:
+\begin{equation}
+    \tilde{\mathbf{a}} = \mathbf{a} + \mathbf{b}_a + \boldsymbol{\eta}_a, \qquad
+    \tilde{\boldsymbol{\omega}} = \boldsymbol{\omega} + \mathbf{b}_g + \boldsymbol{\eta}_g.
+\end{equation}
+Bezpośrednie całkowanie pomiarów IMU prowadzi do szybkiego dryfu pozycji,
+jednak ciasne sprzężenie z~LiDAR-em lub kamerą umożliwia efektywną korekcję.
+
+\subsection{Odometria kołowa}
+
+Enkodery kół mierzą liczbę impulsów $n_L, n_R$ na lewym i~prawym kole.
+Przyrost pozycji w~modelu różnicowym:
+\begin{equation}
+    \Delta x = \frac{\Delta s_L + \Delta s_R}{2}\cos\theta, \quad
+    \Delta y = \frac{\Delta s_L + \Delta s_R}{2}\sin\theta, \quad
+    \Delta\theta = \frac{\Delta s_R - \Delta s_L}{L},
+\end{equation}
+gdzie $\Delta s = n \cdot r \cdot 2\pi / N$ ($r$ --- promień koła, $N$ --- liczba
+impulsów na obrót, $L$ --- rozstaw kół).
+Poślizg i~błędy kalibracji powodują systematyczny dryf.
+
+\section{Reprezentacje map}
+
+Reprezentacja mapy determinuje koszt pamięciowy, szybkość aktualizacji
+i~przydatność do planowania trasy lub inspekcji.
+
+\subsection{Siatka zajętości}
+
+Siatka zajętości dzieli przestrzeń na komórki o~boku $r$, z~których każda
+przechowuje prawdopodobieństwo zajętości w~postaci log-odds:
+\begin{equation}
+    l_t = l_{t-1} + \log\frac{p(occ \mid z_t)}{1 - p(occ \mid z_t)}
+                 - \log\frac{p_0}{1 - p_0},
+\end{equation}
+gdzie $p_0$ jest apriorycznym prawdopodobieństwem.
+Aktualizacja inkrementalna jest szybka; reprezentacja wspiera bezpośrednio
+planowanie ścieżek metodą A* lub Dijkstry.
+
+\subsection{Chmura punktów 3D}
+
+Chmura punktów to nieuporządkowany zbiór wektorów $\{(x_i, y_i, z_i)\}_{i=1}^N$,
+opcjonalnie rozszerzony o~intensywność lub kolor.
+Mapa globalna powstaje przez akumulację kolejnych skanów przy użyciu estymowanych
+poz.
+Reprezentacja zachowuje pełną geometrię 3D, lecz nie koduje explicite
+wolnej przestrzeni i~wymaga dużej pamięci dla długich trajektorii.
+
+\section{Rejestracja chmur punktów}
+
+Rejestracja wyznacza transformację sztywną $(\mathbf{R}, \mathbf{t}) \in SE(3)$,
+która minimalizuje odległość między dwoma zachodzącymi na siebie chmurami punktów.
+
+\subsection{Iterative Closest Point (ICP)}
+
+ICP minimalizuje punkt-do-punktu odległość między chmurą źródłową $\mathcal{S}$
+a~docelową $\mathcal{T}$:
+\begin{equation}
+    (\mathbf{R}^*, \mathbf{t}^*) = \argmin_{\mathbf{R},\mathbf{t}}
+    \sum_{i} \| \mathbf{R}\mathbf{s}_i + \mathbf{t} - \mathbf{t}_i \|^2,
+\end{equation}
+naprzemiennie przypisując korespondencje (najbliższy sąsiad w~k-d drzewie)
+i~rozwiązując optymalizację metodą SVD.
+Algorytm jest wrażliwy na inicjalizację i~wymaga dostatecznego pokrycia chmur.
+
+\subsection{Point-to-Plane ICP}
+
+Zamiast odległości punkt-do-punktu minimalizowana jest odległość punktu źródłowego
+od płaszczyzny stycznej do powierzchni docelowej w~punkcie korespondencji:
+\begin{equation}
+    \sum_{i} \bigl((\mathbf{R}\mathbf{s}_i + \mathbf{t} - \mathbf{t}_i)
+    \cdot \hat{\mathbf{n}}_i\bigr)^2,
+\end{equation}
+gdzie $\hat{\mathbf{n}}_i$ jest normalną powierzchni.
+Metryka ta jest bardziej informatywna na gładkich powierzchniach i~przyspiesza
+zbieżność.
+
+\subsection{Generalized ICP (GICP)}
+
+GICP modeluje każdy punkt jako rozkład gaussowski nad lokalną geometrią powierzchni.
+Minimalizowane jest odchylenie Mahalanobisa między dopasowanymi rozkładami:
+\begin{equation}
+    \sum_{i} \mathbf{d}_i^\top
+    \bigl(\mathbf{\Sigma}_i^{\mathcal{T}} + \mathbf{R}\mathbf{\Sigma}_i^{\mathcal{S}}\mathbf{R}^\top\bigr)^{-1}
+    \mathbf{d}_i,
+\end{equation}
+gdzie $\mathbf{d}_i = \mathbf{t}_i - \mathbf{R}\mathbf{s}_i - \mathbf{t}$.
+GICP łączy punkt-do-punktu i~punkt-do-płaszczyzny w~jednym probabilistycznym
+sformułowaniu i~jest domyślnym wariantem stosowanym przez kilka algorytmów
+ocenianych w~tej pracy.
+
+\section{Filtracyjna estymacja stanu}
+
+Metody filtracyjne reprezentują rozkład prawdopodobieństwa stanu robota
+i~aktualizują go rekurencyjnie w~cyklu predykcja--korekcja.
+
+\subsection{Rozszerzony filtr Kalmana (EKF)}
+
+EKF zakłada gaussowski rozkład stanu $p(\mathbf{x}_t) = \mathcal{N}(\boldsymbol{\mu}_t, \boldsymbol{\Sigma}_t)$
+i~linearyzuje modele ruchu $f$ i~obserwacji $h$ przez rozwinięcie Taylora.
+Predykcja:
+\begin{equation}
+    \bar{\boldsymbol{\mu}}_t = f(\boldsymbol{\mu}_{t-1}, \mathbf{u}_t), \qquad
+    \bar{\boldsymbol{\Sigma}}_t = \mathbf{F}_t \boldsymbol{\Sigma}_{t-1} \mathbf{F}_t^\top + \mathbf{Q}_t,
+\end{equation}
+korekcja:
+\begin{equation}
+    \mathbf{K}_t = \bar{\boldsymbol{\Sigma}}_t \mathbf{H}_t^\top
+    (\mathbf{H}_t \bar{\boldsymbol{\Sigma}}_t \mathbf{H}_t^\top + \mathbf{R}_t)^{-1}, \qquad
+    \boldsymbol{\mu}_t = \bar{\boldsymbol{\mu}}_t + \mathbf{K}_t(\mathbf{z}_t - h(\bar{\boldsymbol{\mu}}_t)),
+\end{equation}
+gdzie $\mathbf{F}_t$, $\mathbf{H}_t$ są jakobianami, $\mathbf{Q}_t$, $\mathbf{R}_t$ ---
+macierzami kowariancji szumu.
+
+\subsection{Filtr cząsteczkowy Rao-Blackwellized}
+
+Poza wyznacza się próbkowaniem cząsteczkowym; mapa warunkowa jest analityczna.
+Wagi cząsteczek po korekcji:
+\begin{equation}
+    w_t^{[k]} \propto \frac{p(\mathbf{z}_t \mid \mathbf{x}_t^{[k]}, \mathbf{m}^{[k]}) \,
+    p(\mathbf{x}_t^{[k]} \mid \mathbf{x}_{t-1}^{[k]}, \mathbf{u}_t)}
+    {\pi(\mathbf{x}_t^{[k]} \mid \mathbf{x}_{t-1}^{[k]}, \mathbf{u}_t, \mathbf{z}_t)}.
+\end{equation}
+Po normalizacji i~resampingu cząsteczki o~niskich wagach są zastępowane.
+Algorytm GMapping, stosowany w~niniejszej pracy, opiera się na tym sformułowaniu.
+
+\section{Grafowy SLAM}
+
+W~grafowym SLAM trajektoria robota i~mapa są reprezentowane jako graf,
+którego węzły odpowiadają pozom, a~krawędzie --- wiązaniom z~modeli odometrii
+lub dopasowania skanów.
+
+\subsection{Grafy pozycji}
+
+Optymalizacja grafu minimalizuje sumaryczny ważony błąd wiązań:
+\begin{equation}
+    \mathbf{x}^* = \argmin_{\mathbf{x}} \sum_{(i,j) \in \mathcal{E}}
+    \mathbf{e}_{ij}(\mathbf{x}_i, \mathbf{x}_j)^\top
+    \boldsymbol{\Omega}_{ij}
+    \mathbf{e}_{ij}(\mathbf{x}_i, \mathbf{x}_j),
+\end{equation}
+gdzie $\mathbf{e}_{ij}$ jest błędem wiązania, a~$\boldsymbol{\Omega}_{ij}$
+--- macierzą informacyjną (odwrotność kowariancji).
+Nieliniowy problem rozwiązywany jest iteracyjnie metodą Gaussa-Newtona
+lub Levenberga-Marquardta (biblioteki g2o, GTSAM, Ceres).
+
+\subsection{Grafy czynnikowe}
+
+Grafy czynnikowe uogólniają grafy pozycji: węzłami mogą być dowolne zmienne
+(pozy, punkty charakterystyczne, biasy IMU), a~krawędziami --- czynniki
+(funkcje gęstości prawdopodobieństwa nad połączonymi zmiennymi).
+Algorytmy LIO-SAM i~MOLA stosują ten formalizm.
+
+\subsection{Detekcja i~zamykanie pętli}
+
+Zamykanie pętli dodaje długodystansowe krawędzie do grafu, gdy robot rozpoznaje
+wcześniej odwiedzone miejsce.
+Dla LiDAR-u stosuje się deskryptory Scan Context lub kandydatów w~promieniu
+szukania z~weryfikacją przez ICP.
+Bez zamykania pętli błąd pozycji rośnie nieograniczenie wzdłuż trajektorii.
+
+\section{Preintegracja IMU i~deskewing}
+
+\textit{Deskewing} koryguje zniekształcenie chmury punktów wynikające z~ruchu
+robota podczas obrotu głowicy LiDAR-u.
+Każdy punkt $\mathbf{p}_k$ jest transformowany do wspólnej chwili $t_0$
+z~użyciem interpolowanej transformacji z~IMU:
+\begin{equation}
+    \mathbf{p}_k^{t_0} = \mathbf{T}(t_0, t_k) \cdot \mathbf{p}_k.
+\end{equation}
+Preintegracja IMU łączy wszystkie pomiary między klatkami kluczowymi $i$ i~$j$
+w~jedno wiązanie $\Delta\mathbf{R}_{ij}$, $\Delta\mathbf{v}_{ij}$, $\Delta\mathbf{p}_{ij}$,
+bez konieczności ponownego całkowania przy każdej iteracji optymalizatora.
+Zmienne integrowane w~przestrzeni $SO(3)$ zachowują strukturę grupy Liego.
+
+\section{Podstawy wizyjnego SLAM}
+
+Wizyjny SLAM używa obrazów kamery jako głównego źródła informacji.
+W~niniejszej pracy oceniane są systemy oparte na cechach wizyjnych (sparse).
+
+\subsection{Stereoskopia i~triangulacja}
+
+Głębokość punktu $\mathbf{p} = (X, Y, Z)^\top$ wyznaczana jest ze wzoru
+$Z = fB/d$ (por.\ sekcja~\ref{sec:sensors}).
+Niepewność głębokości $\sigma_Z \propto Z^2 / (fB)$ rośnie kwadratowo
+z~odległością, ograniczając wiarygodność punktów dalekich.
+
+\subsection{Detekcja i~opis cech}
+
+Detektor ORB wyznacza zorientowane narożniki FAST i~oblicza binarny deskryptor
+BRIEF z~rotacyjną niezmienniczością.
+Dopasowanie par deskryptorów metodą brute-force z~testem Lowe'a:
+\begin{equation}
+    \frac{d_1}{d_2} < \theta,
+\end{equation}
+gdzie $d_1$, $d_2$ to odległości do pierwszego i~drugiego kandydata.
+
+\subsection{Odometria wizyjna}
+
+Wzajemna poza kamer wyznaczana jest z~dekompozycji macierzy esencjalnej
+lub przez minimalizację błędu reprojekcji w~lokalnym bundle adjustment:
+\begin{equation}
+    \min_{\{\mathbf{T}_i\}, \{\mathbf{P}_j\}}
+    \sum_{i,j} \rho\bigl(\| \pi(\mathbf{T}_i \mathbf{P}_j) - \mathbf{u}_{ij} \|^2\bigr),
+\end{equation}
+gdzie $\pi$ jest funkcją projekcji, a~$\rho$ --- kosztem Huber.
+
+\subsection{Rozpoznawanie miejsc metodą Bag-of-Words}
+
+Słownik wizualny $\mathcal{W}$ budowany jest metodą k-means na deskryptorach
+ze zbioru treningowego.
+Każdy obraz reprezentowany jest histogramem $\mathbf{v} \in \mathbb{R}^{|\mathcal{W}|}$
+(z~ważeniem TF-IDF).
+Kandydatem zamknięcia pętli jest obraz o~najwyższym podobieństwie kosinusowym
+do bieżącego, weryfikowany geometrycznie przez RANSAC.
+
+\section{Metryki ewaluacji}
+
+\subsection{Wyrównanie Umeyamy}
+
+Przed obliczeniem błędów trajektoria estymowana wyrównywana jest do referencji
+metodą Umeyamy: minimalizowany jest błąd RMSE między odpowiadającymi pozami
+przez optymalizację transformacji podobieństwa (SVD).
+Dla systemów metrycznych skala jest zablokowana.
+
+\subsection{Bezwzględny błąd trajektorii (ATE)}
+
+\begin{equation}
+    \mathrm{ATE} = \sqrt{\frac{1}{N}\sum_{i=1}^{N}
+    \| \mathbf{t}_i^{\mathrm{est}} - \mathbf{t}_i^{\mathrm{ref}} \|^2},
+\end{equation}
+gdzie $\mathbf{t}_i$ jest translacyjną częścią pozy.
+ATE mierzy globalną spójność trajektorii.
+
+\subsection{Względny błąd pozycji (RPE)}
+
+\begin{equation}
+    \mathrm{RPE} = \sqrt{\frac{1}{M}\sum_{k=1}^{M}
+    \| \mathbf{t}(\mathbf{Q}_k^{-1}\mathbf{P}_k) \|^2},
+\end{equation}
+gdzie $\mathbf{P}_k = (\mathbf{T}_i^{\mathrm{ref}})^{-1}\mathbf{T}_j^{\mathrm{ref}}$,
+$\mathbf{Q}_k = (\mathbf{T}_i^{\mathrm{est}})^{-1}\mathbf{T}_j^{\mathrm{est}}$
+dla par $(i,j)$ odległych o~stały krok.
+RPE mierzy lokalną jakość odometryczną.
+
+
+% ═════════════════════════════════════════════════════════════════════════════
+% WERSJA B — ogólna, konceptualna, bez wzorów
+% ═════════════════════════════════════════════════════════════════════════════
+
+\chapter{Podstawy teoretyczne}
+
+Niniejszy rozdział omawia pojęcia i~metody, których znajomość jest niezbędna
+do zrozumienia algorytmów ocenianych w~pracy.
+Przedstawiono kolejno podproblemy nawigacji mobilnej, sensory użyte
+w~eksperymentach, sposoby reprezentowania map, metody wyrównywania chmur punktów,
+filtracyjne i~grafowe podejścia do SLAM, preintegrację IMU oraz podstawy
+wizyjnego SLAM.
+Na końcu opisano metryki służące do oceny dokładności trajektorii i~map.
+
+\section{Nawigacja w~robotyce mobilnej}
+
+Nawigacja autonomiczna to zdolność robota do celowego przemieszczania się
+w~środowisku bez ingerencji człowieka.
+Tradycyjnie rozkłada się ją na trzy wzajemnie powiązane zadania:
+zliczanie drogi, mapowanie i~lokalizację.
+SLAM łączy mapowanie i~lokalizację w~jednym, spójnym procesie i~stanowi
+fundament wszystkich algorytmów omawianych w~tej pracy.
+
+\subsection{Zliczanie drogi}
+
+Zliczanie drogi to najprostsza forma estymacji pozycji: robot śledzi
+własny ruch, sumując kolejne przyrosty przemieszczenia odczytane z~czujników
+ruchu.
+Metoda nie wymaga żadnej znajomości otoczenia, lecz jej słabością jest
+narastający błąd --- nawet małe przekłamanie każdego pomiaru kumuluje się
+z~czasem, prowadząc do coraz większego odchylenia od rzeczywistej pozycji.
+W~bardziej rozbudowanych systemach zliczanie drogi służy jako szybki
+i~tani punkt startowy dla dokładniejszych metod lokalizacji.
+
+\subsection{Mapowanie}
+
+Mapowanie polega na budowaniu przestrzennego modelu otoczenia na podstawie
+odczytów sensorycznych.
+Kluczowym założeniem jest znajomość pozycji robota w~chwili rejestrowania
+każdego pomiaru --- bez niej kolejne obserwacje nie mogą być spójnie złożone
+w~całość.
+Wynikiem mapowania może być dwuwymiarowa siatka zajętości lub trójwymiarowa
+chmura punktów, w~zależności od stosowanych sensorów i~algorytmu.
+
+\subsection{Lokalizacja}
+
+Lokalizacja to odwrotność mapowania: mając gotową mapę, robot wyznacza
+własną pozycję względem niej na podstawie bieżących pomiarów sensorycznych.
+Wyróżnia się lokalizację globalną, w~której robot nie posiada żadnej
+wstępnej wiedzy o~swojej pozycji, oraz śledzenie pozy, które zakłada
+ciągłość ruchu i~korzysta z~poprzedniej estymacji jako punktu startowego.
+
+\subsection{SLAM}
+
+SLAM rozwiązuje jednocześnie problem mapowania i~lokalizacji, nie zakładając
+ani znajomości mapy, ani dokładnej pozycji robota.
+Algorytm buduje mapę otoczenia i~estymuje trajektorię robota w~jednym,
+sprzężonym procesie, stopniowo korygując oba wyniki w~miarę napływu
+nowych danych.
+W~zależności od tego, czy w~pamięci utrzymywana jest pełna historia pozycji
+czy tylko bieżąca, rozróżnia się SLAM online i~pełny SLAM.
+
+\subsection{Aktywny SLAM}
+
+Aktywny SLAM rozszerza klasyczne podejście o~planowanie ruchu: robot sam
+decyduje, dokąd się udać, by jak najefektywniej zmniejszyć niepewność
+swojej mapy i~pozycji.
+Typowym podejściem jest eksploracja sterowana zyskiem informacyjnym.
+Niniejsza praca dotyczy pasywnego SLAM na gotowych nagraniach,
+dlatego aktywny SLAM nie jest tu rozwijany.
+
+\section{Sensory}
+
+Jakość i~rodzaj dostępnych danych sensorycznych bezpośrednio determinuje,
+które algorytmy SLAM mogą być zastosowane i~jakiej dokładności można się spodziewać.
+W~eksperymentach użyto czterech typów sensorów.
+
+\subsection{LiDAR}
+
+LiDAR mierzy odległości do otaczających obiektów, emitując impulsy laserowe
+i~rejestrując czas ich powrotu.
+Wynikiem jest trójwymiarowa chmura punktów opisująca geometrię otoczenia
+z~wysoką dokładnością i~niezależnie od warunków oświetleniowych.
+Sensor nie rejestruje jednak informacji barwnej ani teksturowej,
+a~przy szybkim ruchu robota chmura punktów ulega zniekształceniu geometrycznemu,
+ponieważ kolejne punkty rejestrowane są w~różnych chwilach czasu.
+
+\subsection{Kamera stereo}
+
+Kamera stereo składa się z~dwóch obiektywów rozstawionych w~poziomie.
+Porównując obrazy z~obu kamer, system wyznacza dysparycję każdego piksela,
+którą przelicza na głębokość.
+Im dalej od kamery znajduje się punkt, tym mniejsza jest dysparycja
+i~tym większa niepewność pomiaru głębokości.
+Kamery dostarczają bogatej informacji teksturowej, co jest kluczowe
+dla wizyjnych algorytmów SLAM, lecz ich skuteczność spada w~słabym oświetleniu
+lub środowiskach pozbawionych charakterystycznych wzorów.
+
+\subsection{IMU}
+
+Centrala inercyjna mierzy przyspieszenie liniowe i~prędkość kątową
+z~bardzo wysoką częstotliwością, rzędu kilkuset herców.
+Pozwala śledzić ruch robota między kolejnymi odczytami wolniejszych sensorów
+i~korygować zniekształcenia chmur punktów LiDAR.
+Wadą IMU jest dryf wynikający z~kumulacji błędów całkowania oraz biasy
+pomiarowe, które muszą być estymowane i~kompensowane.
+
+\subsection{Odometria kołowa}
+
+Enkodery zamontowane na kołach zliczają obroty i~na tej podstawie
+wyznaczany jest przyrost pozycji robota.
+Metoda jest prosta i~tania, lecz podatna na poślizg kół i~błędy kalibracji
+wymiarów mechanicznych.
+W~systemach SLAM odometria kołowa służy zazwyczaj jako dodatkowe, niskokosztowe
+źródło ruchu wspomagające dokładniejsze sensory.
+
+\section{Reprezentacje map}
+
+Wybór reprezentacji mapy wpływa na wymagania pamięciowe, szybkość aktualizacji
+i~przydatność mapy do różnych zadań, takich jak planowanie trasy czy inspekcja.
+
+\subsection{Siatka zajętości}
+
+Siatka zajętości dzieli przestrzeń na jednakowe komórki, z~których każda
+przechowuje szacowane prawdopodobieństwo zajętości przez przeszkodę.
+Każdy odczyt sensoryczny aktualizuje odpowiednie komórki, zwiększając pewność
+co do obecności lub braku przeszkód.
+Reprezentacja ta jest bezpośrednio użyteczna do planowania ścieżek,
+lecz ogranicza się do przestrzeni 2D i~nie koduje struktury ponad
+i~pod płaszczyzną skanowania.
+
+\subsection{Chmura punktów 3D}
+
+Chmura punktów 3D to zbiór współrzędnych przestrzennych zarejestrowanych
+przez sensor.
+Mapa globalna powstaje przez łączenie kolejnych chmur z~uwzględnieniem
+estymowanej pozycji robota.
+Reprezentacja zachowuje pełną trójwymiarową geometrię środowiska i~nadaje się
+do inspekcji oraz oceny jakości odwzorowania, lecz zajmuje dużo pamięci
+i~nie zawiera explicite informacji o~wolnej przestrzeni.
+
+\section{Rejestracja chmur punktów}
+
+Rejestracja to proces wyznaczania przekształcenia przestrzennego, które jak
+najdokładniej dopasowuje dwie zachodzące na siebie chmury punktów.
+Jest podstawą skanowego dopasowania stosowanego w~odometrii LiDAR i~zamykaniu
+pętli.
+
+\subsection{Iterative Closest Point (ICP)}
+
+ICP iteracyjnie wyznacza korespondencje między punktami obu chmur,
+wyszukując dla każdego punktu chmury źródłowej jego najbliższego sąsiada
+w~chmurze docelowej, a~następnie wyznacza transformację minimalizującą
+sumaryczną odległość między korespondującymi parami.
+Proces powtarzany jest do zbieżności.
+Algorytm jest podatny na zły punkt startowy i~wymaga dostatecznego pokrycia
+między chmurami.
+
+\subsection{Point-to-Plane ICP}
+
+Odmiana ICP, w~której minimalizowana jest odległość punktu źródłowego
+od płaszczyzny stycznej do powierzchni docelowej w~punkcie korespondencji.
+Dzięki uwzględnieniu lokalnej geometrii powierzchni metoda zbiega szybciej
+i~jest dokładniejsza na gładkich obiektach.
+
+\subsection{Generalized ICP (GICP)}
+
+GICP traktuje każdy punkt jako małe, lokalne rozkłady opisujące fragment
+powierzchni i~dopasowuje te rozkłady do siebie.
+Łączy właściwości ICP punkt-do-punktu i~punkt-do-płaszczyzny w~jednym
+spójnym sformułowaniu probabilistycznym.
+Jest domyślnym wariantem w~kilku algorytmach ocenianych w~niniejszej pracy.
+
+\section{Filtracyjna estymacja stanu}
+
+Metody filtracyjne reprezentują stan robota jako rozkład prawdopodobieństwa
+i~aktualizują go cyklicznie: predykcja propaguje stan przez model ruchu,
+korekcja uwzględnia nowe pomiary.
+
+\subsection{Rozszerzony filtr Kalmana (EKF)}
+
+EKF zakłada, że rozkład stanu jest gaussowski i~że modele ruchu oraz obserwacji
+mogą być w~każdej chwili zlinearyzowane.
+W~kroku predykcji propaguje średnią i~macierz kowariancji przez zlinearyzowany
+model ruchu, a~w~kroku korekcji łączy przewidywanie z~rzeczywistym pomiarem
+za pomocą wzmocnienia Kalmana.
+Jest podstawą wielu systemów fuzji sensorycznej, w~tym narzędzia robot\_localization
+użytego w~eksperymentach.
+
+\subsection{Filtr cząsteczkowy Rao-Blackwellized}
+
+Filtr cząsteczkowy reprezentuje rozkład stanu jako dyskretny zbiór
+próbek (\textit{cząsteczek}), z~których każda niesie hipotezę trajektorii
+i~odpowiadającą jej mapę.
+Po nadejściu nowego pomiaru wagi cząsteczek są aktualizowane, a~cząsteczki
+o~niskich wagach zastępowane są nowymi, bliższymi bardziej prawdopodobnym
+hipotezom.
+Na tym mechanizmie opiera się algorytm GMapping stosowany w~pracy.
+
+\section{Grafowy SLAM}
+
+Grafowe podejście do SLAM dzieli problem na dwie fazy: budowanie grafu
+(front-end, oparty na odometrii i~dopasowaniu skanów) i~optymalizację grafu
+(back-end, zapewniającą globalną spójność mapy).
+
+\subsection{Grafy pozycji}
+
+Każda estymowana pozycja robota to węzeł grafu, a~każde wiązanie sensoryczne ---
+krawędź z~przypisaną miarą pewności.
+Optymalizacja minimalizuje sumaryczny błąd wszystkich wiązań, rozkładając
+niespójności równomiernie po całej trajektorii.
+
+\subsection{Grafy czynnikowe}
+
+Grafy czynnikowe uogólniają grafy pozycji: węzłami mogą być dowolne zmienne
+(pozy, punkty mapy, biasy IMU), a~krawędzie reprezentują probabilistyczne
+zależności między nimi.
+Formalizm ten jest stosowany m.in.\ przez algorytmy LIO-SAM i~MOLA.
+
+\subsection{Detekcja i~zamykanie pętli}
+
+Gdy robot powraca w~pobliże wcześniej odwiedzonego miejsca, system może
+rozpoznać to miejsce i~dodać do grafu długodystansowe wiązanie korekcyjne.
+Bez zamykania pętli błąd pozycji narasta nieograniczenie, a~mapa staje się
+niespójna na długich trajektoriach.
+
+\section{Preintegracja IMU i~deskewing}
+
+Szybki ruch robota powoduje, że kolejne punkty jednej chmury LiDAR rejestrowane
+są w~różnych chwilach czasu, co zniekształca geometrię chmury.
+Korekcja tego efektu --- deskewing --- polega na przetransformowaniu każdego
+punktu do wspólnej chwili z~użyciem danych IMU.
+
+Preintegracja IMU pozwala skumulować dziesiątki lub setki pomiarów IMU
+w~jedno kompaktowe wiązanie między klatkami kluczowymi, które może być
+bezpośrednio włączone do grafu czynnikowego bez ponownego całkowania
+przy każdej iteracji optymalizatora.
+
+\section{Podstawy wizyjnego SLAM}
+
+Wizyjny SLAM opiera się na obrazach kamery.
+W~niniejszej pracy oceniane są metody oparte na rzadkich cechach wizyjnych.
+
+\subsection{Stereoskopia i~triangulacja}
+
+Kamera stereo wyznacza głębokość każdego punktu na podstawie różnicy
+położenia jego obrazu w~lewym i~prawym obiektywie.
+Im mniejsza ta różnica (mała dysparycja), tym większa odległość punktu
+i~tym mniej pewny pomiar głębokości.
+
+\subsection{Detekcja i~opis cech}
+
+Cechy wizyjne to charakterystyczne fragmenty obrazu --- narożniki, plamy ---
+które dają się niezawodnie wykryć i~opisać numerycznie.
+Deskryptor ORB jest odporny na obroty obrazu i~szybki obliczeniowo,
+co czyni go popularnym wyborem w~systemach działających w~czasie rzeczywistym.
+Dopasowanie cech między klatkami odbywa się przez porównanie deskryptorów.
+
+\subsection{Odometria wizyjna}
+
+Dopasowane cechy między kolejnymi klatkami pozwalają wyznaczyć względną
+pozycję kamery.
+Lokalna optymalizacja (bundle adjustment) minimalizuje błąd reprojekcji
+dla zestawu klatek i~punktów 3D, poprawiając spójność krótkoterminową.
+
+\subsection{Rozpoznawanie miejsc metodą Bag-of-Words}
+
+Słownik wizualny grupuje deskryptory w~klastry --- \textit{słowa wizualne}.
+Każdy obraz jest wówczas reprezentowany jako histogram częstości tych słów.
+Podobieństwo histogramów służy do wyszukiwania wcześniej odwiedzonych miejsc,
+a~geometryczna weryfikacja przez RANSAC potwierdza poprawność kandydatów.
+
+\section{Metryki ewaluacji}
+
+\subsection{Wyrównanie Umeyamy}
+
+Przed porównaniem trajektoria estymowana wyrównywana jest do referencji przez
+optymalizację transformacji podobieństwa minimalizującej błąd RMSE między
+odpowiadającymi sobie pozycjami.
+Dla systemów metrycznych skala transformacji jest ustalona.
+
+\subsection{Bezwzględny błąd trajektorii (ATE)}
+
+ATE to średni kwadratowy błąd translacyjny między estymowaną a~referencyjną
+pozycją robota po wyrównaniu.
+Mierzy globalną spójność trajektorii i~długoterminowy dryf algorytmu.
+
+\subsection{Względny błąd pozycji (RPE)}
+
+RPE wyznaczany jest dla krótkich odcinków trajektorii o~stałej długości
+lub czasie.
+Mierzy lokalną jakość odometrii --- czyli to, jak dokładnie algorytm
+odwzorowuje ruch robota w~krótkim oknie czasowym, niezależnie od
+globalnego dryfu.
+
+
+% ═════════════════════════════════════════════════════════════════════════════
+% WERSJA C — precyzyjna, minimalna matematyka
+% ═════════════════════════════════════════════════════════════════════════════
+
+\chapter{Podstawy teoretyczne}
+
+Rozdział zawiera terminologię i~koncepcje algorytmiczne niezbędne do
+interpretacji wyników przedstawionych w~rozdziale~4.
+Omówiono podproblemy nawigacji mobilnej i~ich wzajemne zależności, sensory
+stosowane w~eksperymentach, reprezentacje map, metody rejestracji chmur punktów,
+filtracyjne i~grafowe podejścia do estymacji stanu, preintegrację IMU,
+podstawy wizyjnego SLAM oraz metryki ewaluacji.
+
+\section{Nawigacja w~robotyce mobilnej}
+
+Nawigacja autonomiczna polega na celowym przemieszczaniu się robota
+i~tradycyjnie dekomponowana jest na trzy zadania: zliczanie drogi, mapowanie
+i~lokalizację.
+SLAM łączy mapowanie i~lokalizację w~jeden sprzężony problem, eliminując
+konieczność posiadania gotowej mapy lub zewnętrznego systemu pozycjonowania.
+
+\subsection{Zliczanie drogi}
+
+Zliczanie drogi to estymacja pozy robota przez całkowanie kolejnych przyrostów
+ruchu z~odometrii lub sterowań.
+Nie wymaga znajomości mapy, lecz błędy kolejnych przyrostów kumulują się
+bez mechanizmu korekcji, prowadząc do narastającego dryfu.
+W~systemach SLAM pełni rolę modelu predykcji między kolejnymi pomiarami.
+
+\subsection{Mapowanie}
+
+Mapowanie to wyznaczanie przestrzennego modelu środowiska ze strumienia pomiarów
+sensorycznych przy założeniu znanych poz robota.
+Błąd pozycji przenosi się bezpośrednio na spójność mapy: niepoprawnie
+zlokalizowane pomiary deformują globalną strukturę odwzorowania.
+
+\subsection{Lokalizacja}
+
+Lokalizacja to estymacja pozy robota względem danej mapy na podstawie
+bieżących pomiarów.
+Wyróżnia się lokalizację globalną (bez informacji apriorycznej) i~śledzenie
+pozy (z~ciągłością ruchu jako aprioryczną wiedzą).
+
+\subsection{SLAM}
+
+SLAM szacuje jednocześnie trajektorię robota i~mapę środowiska ze strumienia
+danych sensorycznych i~sterowań.
+Wzajemna zależność obu zadań czyni problem trudnym: mapa poprawia lokalizację,
+a~lokalizacja poprawia mapę.
+Podejście online marginalizuje przeszłe pozy; podejście full SLAM zachowuje
+pełną trajektorię, umożliwiając globalną optymalizację.
+
+\subsection{Aktywny SLAM}
+
+Aktywny SLAM rozszerza pasywne podejście o~planowanie ruchu sterowane
+redukcją niepewności mapy i~trajektorii.
+Niniejsza praca dotyczy pasywnego SLAM na nagranych danych; aktywny SLAM
+pozostaje poza zakresem rozważań.
+
+\section{Sensory}
+
+Typ i~jakość dostępnych sensorów determinuje, jakie rodziny algorytmów SLAM
+mogą być stosowane i~jakich charakterystyk dokładności można oczekiwać.
+W~eksperymentach zastosowano cztery uzupełniające się sensory.
+
+\subsection{LiDAR}
+
+LiDAR mierzy odległości metodą czasu przelotu impulsu laserowego,
+dostarczając trójwymiarowej chmury punktów z~zasięgiem do kilkudziesięciu metrów
+i~rozdzielczością kątową rzędu dziesiątych części stopnia.
+Sensor działa niezależnie od oświetlenia, lecz nie rejestruje informacji
+barwnej; przy szybkim ruchu robota punkty rejestrowane podczas jednego obrotu
+głowicy tworzą geometrycznie zniekształconą chmurę (\textit{motion distortion}).
+
+\subsection{Kamera stereo}
+
+Kamera stereo wyznacza głębokość na podstawie dysparycji między obrazami
+lewego i~prawego obiektywu; dokładność maleje kwadratowo z~odległością.
+Dostarcza bogatej informacji teksturowej przydatnej w~dopasowaniu cech,
+lecz jest wrażliwa na słabe lub niejednolite oświetlenie i~środowiska
+o~monotonnej teksturze.
+
+\subsection{IMU}
+
+Centrala inercyjna mierzy przyspieszenie liniowe i~prędkość kątową
+z~częstotliwością rzędu $200$~Hz.
+Pomiary obarczone są biasem i~szumem gaussowskim, których kumulacja prowadzi
+do dryfu; ciasne sprzężenie IMU z~LiDAR-em lub kamerą pozwala jednak
+efektywnie korygować zniekształcenia i~zwiększa odporność na dynamikę ruchu.
+
+\subsection{Odometria kołowa}
+
+Enkodery kół dostarczają przyrostów pozy przez zliczanie obrotów kół
+w~modelu różnicowym.
+Poślizg i~błędy kalibracji (promień koła, rozstaw kół) wprowadzają błąd
+systematyczny; w~systemach SLAM odometria kołowa stosowana jest jako
+niskokosztowe uzupełnienie dokładniejszych sensorów.
+
+\section{Reprezentacje map}
+
+\subsection{Siatka zajętości}
+
+Siatka zajętości to dyskretna dwuwymiarowa siatka komórek przechowujących
+prawdopodobieństwo zajętości w~postaci log-odds.
+Każdy odczyt sensoryczny aktualizuje odpowiednie komórki za pomocą prostego
+modelu obserwacji.
+Reprezentacja nadaje się bezpośrednio do planowania ścieżek,
+lecz ogranicza się do 2D i~ma stałą rozdzielczość.
+
+\subsection{Chmura punktów 3D}
+
+Chmura punktów to nieuporządkowany zbiór trójwymiarowych współrzędnych.
+Mapa globalna powstaje przez akumulację kolejnych skanów transformowanych
+do układu globalnego przy użyciu estymowanych poz.
+Reprezentacja zachowuje pełną geometrię 3D, lecz nie koduje wolnej przestrzeni
+i~jest kosztowna pamięciowo dla długich trajektorii.
+
+\section{Rejestracja chmur punktów}
+
+Rejestracja wyznacza transformację sztywną z~$SE(3)$ minimalizującą
+geometryczną rozbieżność między dwoma zachodzącymi na siebie chmurami punktów.
+
+\subsection{Iterative Closest Point (ICP)}
+
+ICP iteracyjnie przypisuje korespondencje jako pary najbliższych punktów
+i~wyznacza transformację minimalizującą sumę kwadratów odległości
+między korespondującymi parami.
+Algorytm jest wrażliwy na inicjalizację i~lokalnie zbieżny.
+
+\subsection{Point-to-Plane ICP}
+
+Zamiast odległości punkt-do-punktu minimalizowana jest składowa normalna
+wektora błędu względem płaszczyzny stycznej do chmury docelowej.
+Metryka jest bardziej informatywna na gładkich powierzchniach
+i~przyspiesza zbieżność.
+
+\subsection{Generalized ICP (GICP)}
+
+GICP modeluje lokalne sąsiedztwo każdego punktu jako rozkład gaussowski
+nad geometrią powierzchni i~minimalizuje odchylenie Mahalanobisa
+między dopasowanymi rozkładami.
+Unifikuje podejścia punkt-do-punktu i~punkt-do-płaszczyzny;
+jest domyślnym wariantem w~kilku algorytmach ocenianych w~pracy.
+
+\section{Filtracyjna estymacja stanu}
+
+\subsection{Rozszerzony filtr Kalmana (EKF)}
+
+EKF reprezentuje stan robota jako gaussowski rozkład (średnia, macierz kowariancji)
+i~propaguje go przez zlinearyzowane modele ruchu i~obserwacji.
+Krok predykcji przesuwa średnią i~rozszerza kowariancję zgodnie z~modelem ruchu;
+krok korekcji kurczy kowariancję na podstawie nowego pomiaru proporcjonalnie
+do jego wiarygodności.
+Jest stosowany w~fuzji sensorycznej odometrii (robot\_localization).
+
+\subsection{Filtr cząsteczkowy Rao-Blackwellized}
+
+Rozkład pozy reprezentowany jest przez skończony zbiór cząsteczek,
+z~których każda niesie hipotetyczną trajektorię i~warunkową mapę.
+Po nadejściu pomiaru wagi cząsteczek są aktualizowane według modelu obserwacji,
+a~następnie resampling zastępuje cząsteczki mało prawdopodobne.
+Na tym mechanizmie opiera się GMapping.
+
+\section{Grafowy SLAM}
+
+\subsection{Grafy pozycji}
+
+Trajektoria robota i~mapa reprezentowane są jako graf: węzły to estymowane
+pozy, krawędzie --- wiązania z~odometrii lub dopasowania skanów z~przypisanymi
+macierzami kowariancji.
+Back-end minimalizuje sumę ważonych błędów wiązań przez nieliniową optymalizację
+(g2o, GTSAM, Ceres), równomiernie rozkładając rezydua po całej trajektorii.
+
+\subsection{Grafy czynnikowe}
+
+Grafy czynnikowe uogólniają grafy pozycji: węzłami mogą być dowolne zmienne
+(pozy, biasy IMU, skala), krawędziami --- dowolne czynniki probabilistyczne.
+Formalizm stosowany m.in.\ przez LIO-SAM i~MOLA.
+
+\subsection{Detekcja i~zamykanie pętli}
+
+Zamykanie pętli wykrywa powrót robota w~pobliże wcześniej odwiedzonego miejsca
+i~dodaje do grafu długodystansowe wiązanie korekcyjne.
+Bez niego błąd trajektorii narasta wzdłuż całej trasy; z~nim globalny
+back-end jest w~stanie zniwelować dryf nagromadzony od ostatniego zamknięcia.
+
+\section{Preintegracja IMU i~deskewing}
+
+Deskewing koryguje zniekształcenie geometryczne chmury punktów LiDAR
+wynikające z~ruchu robota podczas obrotu głowicy: każdy punkt transformowany
+jest do wspólnej chwili referencyjnej z~użyciem interpolowanej pozy z~IMU.
+
+Preintegracja IMU łączy wszystkie pomiary między klatkami kluczowymi
+w~kompaktowe wiązanie preintegrowane, reprezentowane na grupie Liego $SO(3)$,
+które może być bezpośrednio włączone do grafu czynnikowego bez ponownego
+całkowania przy każdej iteracji optymalizatora.
+
+\section{Podstawy wizyjnego SLAM}
+
+\subsection{Stereoskopia i~triangulacja}
+
+Głębokość wyznaczana jest ze stosunku iloczynu ogniskowej i~bazy do dysparycji.
+Niepewność głębokości rośnie kwadratowo z~odległością, ograniczając zakres,
+w~którym pomiary stereo są wiarygodne.
+
+\subsection{Detekcja i~opis cech}
+
+Cechy ORB łączą detektor FAST z~binarnym deskryptorem BRIEF,
+zapewniając niezmienniczość na obroty i~szybkie obliczenia.
+Dopasowanie par deskryptorów filtrowane jest testem stosunku odległości
+eliminującym niejednoznaczne korespondencje.
+
+\subsection{Odometria wizyjna}
+
+Wzajemna poza kamer wyznaczana jest z~dopasowanych korespondencji
+przez dekompozycję macierzy esencjalnej lub minimalizację błędu reprojekcji
+w~lokalnym bundle adjustment.
+Lokalna optymalizacja poprawia krótkoterminową spójność, lecz nie zapobiega
+długoterminowemu dryfowi bez zamykania pętli.
+
+\subsection{Rozpoznawanie miejsc metodą Bag-of-Words}
+
+Słownik wizualny dzieli przestrzeń deskryptorów na klastry --- słowa wizualne.
+Każdy obraz reprezentowany jest histogramem słów (z~ważeniem TF-IDF),
+a~zamknięcie pętli wyzwalane jest przez wysokie podobieństwo kosinusowe
+między bieżącym a~archiwalnymi histogramami, po geometrycznej weryfikacji RANSAC.
+
+\section{Metryki ewaluacji}
+
+\subsection{Wyrównanie Umeyamy}
+
+Przed obliczeniem błędów trajektoria estymowana wyrównywana jest do referencji
+przez optymalizację transformacji podobieństwa minimalizującej RMSE między
+odpowiadającymi pozami (rozwiązanie zamknięte SVD).
+Dla systemów metrycznych skala jest ustalona na~1.
+
+\subsection{Bezwzględny błąd trajektorii (ATE)}
+
+ATE to RMSE błędów translacyjnych między estymowanymi a~referencyjnymi
+pozycjami robota po wyrównaniu.
+Mierzy globalną spójność i~długoterminowy dryf trajektorii.
+
+\subsection{Względny błąd pozycji (RPE)}
+
+RPE wyznaczany jest dla par poz odległych o~stały krok jako RMSE różnic
+między względnymi transformacjami estymowanymi a~referencyjnymi.
+Mierzy lokalną jakość odometryczną niezależnie od globalnego dryfu.

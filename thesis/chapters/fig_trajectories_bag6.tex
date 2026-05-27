@@ -1,0 +1,56 @@
+\begin{figure}[H]
+\centering
+% Row 1 — sensor fusion + LiDAR odometry
+\subcaptionbox{EKF Dead Reckoning\\ ATE = 0.007\,m}
+  {\includegraphics[width=0.32\textwidth]{trajectory_ekf}}%
+\hfill
+\subcaptionbox{KISS-ICP\\ ATE = 0.505\,m}
+  {\includegraphics[width=0.32\textwidth]{trajectory_kiss_icp}}%
+\hfill
+\subcaptionbox{MOLA Odometry\\ ATE = 0.223\,m}
+  {\includegraphics[width=0.32\textwidth]{trajectory_mola_odometry}}
+\\[0.8em]
+% Row 2 — 2D LiDAR SLAM
+\subcaptionbox{Cartographer 2D\\ ATE = 0.280\,m}
+  {\includegraphics[width=0.32\textwidth]{trajectory_cartographer2d}}%
+\hfill
+\subcaptionbox{GMapping\\ ATE = 0.015\,m}
+  {\includegraphics[width=0.32\textwidth]{trajectory_gmapping}}%
+\hfill
+\subcaptionbox{SLAM Toolbox\\ ATE = 4.942\,m}
+  {\includegraphics[width=0.32\textwidth]{trajectory_slam_toolbox}}
+\\[0.8em]
+% Row 3 — 3D LiDAR SLAM + LiDAR-IMU
+\subcaptionbox{RTABMap LiDAR\\ ATE = 0.004\,m}
+  {\includegraphics[width=0.32\textwidth]{trajectory_rtabmap}}%
+\hfill
+\subcaptionbox{FAST-LIO2\\ ATE = 3.974\,m}
+  {\includegraphics[width=0.32\textwidth]{trajectory_fast_lio}}%
+\hfill
+\subcaptionbox{DLIO\\ ATE = 0.042\,m}
+  {\includegraphics[width=0.32\textwidth]{trajectory_dlio}}
+\\[0.8em]
+% Row 4 — LiDAR-IMU SLAM + visual
+\subcaptionbox{lidarslam\_ros2\\ ATE = 0.034\,m}
+  {\includegraphics[width=0.32\textwidth]{trajectory_lidarslam}}%
+\hfill
+\subcaptionbox{cuVSLAM\\ ATE = 0.712\,m}
+  {\includegraphics[width=0.32\textwidth]{trajectory_vslam_bag6}}%
+\hfill
+\subcaptionbox{RTABMap RGB-D\\ ATE = 0.102\,m}
+  {\includegraphics[width=0.32\textwidth]{trajectory_rtabmap_rgbd}}
+\\[0.8em]
+% Row 5 — ORB-SLAM3 (failure cases)
+\subcaptionbox{ORB-SLAM3 Stereo\\ ATE = 2.587\,m}
+  {\includegraphics[width=0.32\textwidth]{trajectory_orbslam_stereo}}%
+\hfill
+\subcaptionbox{ORB-SLAM3 Stereo+IMU\\ ATE = 163.928\,m}
+  {\includegraphics[width=0.32\textwidth]{trajectory_orbslam_stereo_imu}}%
+\hfill
+\begin{minipage}[b]{0.32\textwidth}\end{minipage}% empty slot
+\caption{Estimated trajectories for all evaluated algorithms (colour)
+  against the ground-truth reference (dashed black line).
+  All trajectories are Umeyama-aligned to the ground truth.
+  Circle: start, square: end.}
+\label{fig:trajectories_bag6}
+\end{figure}

@@ -1,0 +1,493 @@
+% ─────────────────────────────────────────────────────────────────────────────
+% WERSJA POLSKA — ROZDZIAŁ 4 — WERSJE ROBOCZE
+% Wszystkie wersje mają identyczną strukturę sekcji.
+% Różnią się stylem:
+%   Wersja A — formalna, akademicka, metodyczna
+%   Wersja B — zwięzła i zorientowana na dane, liczby mówią same za siebie
+%   Wersja C — narracyjna i analityczna, skupiona na interpretacji wyników
+% ─────────────────────────────────────────────────────────────────────────────
+
+
+% ═════════════════════════════════════════════════════════════════════════════
+% WERSJA A — formalna, metodyczna, akademicka
+% ═════════════════════════════════════════════════════════════════════════════
+
+\chapter{Badanie eksperymentalne}
+
+Niniejszy rozdział przedstawia konfigurację eksperymentalną, opis środowiska
+symulacyjnego, metodologię ewaluacji oraz wyniki uzyskane przez jedenaście
+ocenianych algorytmów SLAM.
+Eksperymenty przeprowadzono na jednym zbiorze danych w~celu zapewnienia
+pełnej porównywalności wyników między algorytmami.
+
+\section{Konfiguracja eksperymentalna}
+
+\subsection{Platforma robotyczna}
+
+Platformą badawczą jest robot mobilny TurtleBot3~Burger --- dwukołowy robot
+różnicowy o~niskim punkcie ciężkości, reprezentatywny dla klasy małych robotów
+mobilnych przeznaczonych do nawigacji w~środowiskach wewnętrznych.
+Robot porusza się z~prędkością liniową do $0{,}22$~m/s.
+
+\subsection{Konfiguracja sensoryczna}
+
+Robot wyposażony jest w~cztery sensory uzupełniające się wzajemnie.
+Trójwymiarowy wirujący skaner LiDAR pracuje z~częstotliwością $33{,}6$~Hz
+(okres skanu $\approx30$~ms), dostarczając gęstych chmur punktów 3D.
+Kamera stereo Leopard~Imaging LI-AR0234CS-NVIDIA~Hawk o~bazie $100$~mm,
+rozdzielczości $1920\times1200$ i~polu widzenia $121{,}5°$ rejestruje obrazy
+z~częstotliwością $60$~fps; obliczana jest z~niej mapa głębokości o~rozdzielczości
+$640\times360$.
+Centrala inercyjna IMU, zintegrowana z~modułem kamery, dostarcza pomiarów
+z~częstotliwością $\approx62$~Hz.
+Odometria kołowa wyznaczana jest z~enkoderów silników.
+
+\subsection{Środowisko programowe}
+
+Wszystkie algorytmy uruchomiono w~środowisku ROS\,2 (dystrybucja Humble)
+na tym samym zestawie sprzętowym.
+Dane sensoryczne odtwarzano z~nagrania~(\textit{rosbag}) z~prędkością
+rzeczywistą, zapewniając identyczne warunki temporalne dla każdego algorytmu.
+Preprocessing obejmował rzutowanie chmury punktów 3D na skan 2D (dla algorytmów
+GMapping, Cartographer i~SLAM~Toolbox) oraz przypisanie indeksów pierścieni
+LiDAR wymaganych przez LIO-SAM.
+
+\section{Środowisko symulacyjne}
+
+\subsection{Opis środowiska}
+
+Dane zarejestrowano w~symulowanym środowisku magazynowym w~NVIDIA~Isaac~Sim.
+Środowisko odwzorowuje typowy magazyn z~regałami ustawionymi w~regularnych rzędach,
+co stanowi wyzwanie dla algorytmów opartych na zamykaniu pętli ze względu na
+repetytywność geometryczną sceny.
+Trasa przejazdu obejmuje pełną pętlę przez wszystkie korytarze między regałami.
+
+\subsection{Rejestracja zbioru danych}
+
+Zbiór danych (bag\_6) zarejestrowano z~wszystkimi tematami sensorycznymi:
+chmurą punktów, lewym i~prawym obrazem kamery, mapą głębokości, danymi IMU
+i~odometrią kołową.
+Synchronizacja czasowa zapewniona jest przez znaczniki czasowe ROS\,2.
+
+\subsection{Ekstrakcja danych referencyjnych}
+
+Symulator NVIDIA~Isaac~Sim dostarcza dokładnych pozycji referencyjnych
+(\textit{ground truth}) z~rozdzielczością odpowiadającą częstotliwości
+odometrii.
+Pozycje referencyjne zapisano jako temat ROS\,2 i~użyto bezpośrednio do obliczenia
+metryk ATE i~RPE po wyrównaniu Umeyamy.
+
+\section{Metodologia ewaluacji}
+
+\subsection{Dokładność trajektorii}
+
+Trajektorię estymowaną wyrównuje się do referencji metodą Umeyamy,
+a~następnie oblicza się ATE~RMSE i~ATE~mean jako miary błędu globalnego
+oraz RPE~RMSE i~RPE~mean dla okien lokalnych.
+Wszystkie wartości wyrażone są w~metrach.
+
+\subsection{Jakość mapy}
+
+Dla algorytmów generujących gęstą chmurę punktów 3D wyznaczana jest
+odległość Chamfera (CD) między mapą estymowaną a~mapą referencyjną
+zbudowaną ze skanów referencyjnych.
+Uzupełnieniem jest miara F-score dla progów $5$, $10$ i~$20$~cm,
+wyrażona jako harmoniczna precyzji i~czułości przy danym progu odległości.
+
+\subsection{Koszt obliczeniowy}
+
+Średnie obciążenie procesora i~szczytowe zużycie pamięci RAM rejestrowano
+w~trakcie działania każdego algorytmu na tym samym zestawie sprzętowym.
+
+\section{Wyniki}
+
+\input{chapters/table_bag6}
+
+\subsection{Dokładność trajektorii}
+
+\input{chapters/fig_trajectories_bag6}
+
+Najniższy ATE~RMSE uzyskał RTABMap~LiDAR ($0{,}004$~m), co plasuje go znacząco
+powyżej wszystkich pozostałych algorytmów.
+W~grupie wyników dobrych ($\text{ATE} < 0{,}05$~m) znalazły się ponadto EKF
+($0{,}007$~m), GMapping ($0{,}015$~m), lidarslam\_ros2 ($0{,}034$~m)
+i~DLIO ($0{,}042$~m).
+Algorytmy Cartographer~2D ($0{,}280$~m), MOLA~Odometry ($0{,}223$~m),
+KISS-ICP ($0{,}505$~m), RTABMap~RGB-D ($0{,}102$~m) i~cuVSLAM ($0{,}712$~m)
+osiągnęły wyniki pośrednie.
+Trzy algorytmy wykazały znaczący błąd: SLAM~Toolbox ($4{,}942$~m),
+FAST-LIO2 ($3{,}974$~m) i~ORB-SLAM3~Stereo ($2{,}587$~m);
+wersja ORB-SLAM3 z~IMU uległa katastrofalnemu awarii (ATE $163{,}9$~m).
+
+\subsection{Jakość mapy}
+
+RTABMap~LiDAR uzyskał najniższą odległość Chamfera ($0{,}049$~m)
+i~najwyższe F-score we wszystkich progach (F@20\,cm $= 0{,}999$),
+potwierdzając dominację zarówno w~dokładności trajektorii, jak i~jakości mapy.
+EKF ($\text{CD} = 0{,}085$~m) i~Cartographer~2D ($0{,}103$~m) uzyskały
+podobną jakość geometryczną mapy, choć produkują ją odmiennymi metodami.
+Algorytmy 2D~SLAM (GMapping, SLAM~Toolbox) wykazały niskie wartości F-score
+mimo akumulacji skanów 3D, co wynika z~płaskiej struktury ich map.
+Algorytmy wizyjne i~te, które nie ukończyły trasy, uniemożliwiły obliczenie
+metryk 3D.
+
+\subsection{Koszt obliczeniowy}
+
+% TODO: uzupełnić danymi CPU/RAM z eksperymentów
+
+\section{Dyskusja}
+
+\subsection{Metody oparte na LiDAR}
+
+RTABMap~LiDAR wykazał najwyższą dokładność spośród wszystkich ocenianych
+algorytmów, co zawdzięcza mechanizmowi zamykania pętli opartemu na deskryptorach
+geometrycznych i~globalnej optymalizacji grafu.
+GMapping osiągnął zaskakująco niski ATE ($0{,}015$~m), co wskazuje na skuteczne
+działanie filtra Rao-Blackwellized w~regularnym środowisku magazynowym.
+SLAM~Toolbox wykazał natomiast poważny błąd ($4{,}942$~m) spowodowany fałszywymi
+zamknięciami pętli wynikającymi z~repetytywności geometrii regałów.
+
+\subsection{Metody LiDAR-IMU}
+
+FAST-LIO2 nie ukończył skutecznie trasy (ATE $3{,}974$~m), co wskazuje na trudności
+z~inicjalizacją lub utratę śledzenia w~warunkach magazynowych.
+Wynik lidarslam\_ros2 ($0{,}034$~m) potwierdza skuteczność ciasnego sprzężenia
+LiDAR-IMU przy odpowiedniej kalibracji.
+
+\subsection{Metody wizyjne}
+
+cuVSLAM ($0{,}712$~m) i~RTABMap~RGB-D ($0{,}102$~m) wykazały porównywalną
+skuteczność w~warunkach dobrego oświetlenia.
+ORB-SLAM3 nie ukończył trasy w~żadnej konfiguracji; prawdopodobną przyczyną
+jest niedopasowanie modelu optycznego do szerokokątnego obiektywu kamery Hawk
+o~polu widzenia $121{,}5°$.
+
+\subsection{Przypadki awarii}
+
+Trzy algorytmy --- SLAM~Toolbox, FAST-LIO2 i~ORB-SLAM3 --- nie ukończyły
+skutecznie trajektorii.
+Wspólną cechą wszystkich awarii jest wrażliwość na repetytywność środowiska
+lub niedopasowanie modelu algorytmu do charakterystyk stosowanych sensorów.
+Wyniki te stanowią cenne uzupełnienie porównania, wskazując granice
+stosowalności poszczególnych podejść.
+
+
+% ═════════════════════════════════════════════════════════════════════════════
+% WERSJA B — zwięzła, zorientowana na dane
+% ═════════════════════════════════════════════════════════════════════════════
+
+\chapter{Badanie eksperymentalne}
+
+Rozdział przedstawia konfigurację sprzętową i~programową, opis zbioru danych,
+metodologię pomiarów oraz wyniki jedenastu algorytmów SLAM.
+
+\section{Konfiguracja eksperymentalna}
+
+\subsection{Platforma robotyczna}
+
+Robot TurtleBot3~Burger to dwukołowa platforma różnicowa przeznaczona do
+nawigacji w~środowiskach wewnętrznych, o~maksymalnej prędkości $0{,}22$~m/s.
+
+\subsection{Konfiguracja sensoryczna}
+
+Platforma wyposażona jest w:
+\begin{itemize}
+    \item trójwymiarowy wirujący LiDAR, $33{,}6$~Hz, okres skanu $\approx30$~ms;
+    \item kamerę stereo NVIDIA~Hawk: baza $100$~mm, $1920\times1200$~px,
+          FOV $121{,}5°$, $60$~fps; głębokość $640\times360$~px;
+    \item IMU zintegrowane z~modułem kamery, $\approx62$~Hz;
+    \item odometrię kołową z~enkoderów silników.
+\end{itemize}
+
+\subsection{Środowisko programowe}
+
+Wszystkie algorytmy uruchomiono w~ROS\,2 Humble.
+Dane odtwarzano z~nagrania z~prędkością rzeczywistą.
+Dla algorytmów 2D zastosowano rzutowanie chmury 3D na skan planarny;
+dla LIO-SAM --- przypisanie indeksów pierścieni LiDAR z~kąta elewacji.
+
+\section{Środowisko symulacyjne}
+
+\subsection{Opis środowiska}
+
+Zbiór danych zarejestrowano w~symulowanym magazynie w~NVIDIA~Isaac~Sim,
+z~regularnymi rzędami regałów stanowiącymi wyzwanie dla algorytmów
+zamknięcia pętli.
+
+\subsection{Rejestracja zbioru danych}
+
+Nagranie bag\_6 obejmuje chmurę punktów, obrazy stereo, głębokość, IMU
+i~odometrię kołową zsynchronizowane znacznikami czasowymi ROS\,2.
+
+\subsection{Ekstrakcja danych referencyjnych}
+
+Pozycje referencyjne (\textit{ground truth}) pobrano bezpośrednio z~symulatora
+i~użyto do obliczenia metryk po wyrównaniu metodą Umeyamy.
+
+\section{Metodologia ewaluacji}
+
+\subsection{Dokładność trajektorii}
+
+Metryki ATE~RMSE, ATE~mean, RPE~RMSE i~RPE~mean wyznaczane są po wyrównaniu
+Umeyamy; wartości w~metrach.
+
+\subsection{Jakość mapy}
+
+Odległość Chamfera (CD) i~F-score przy progach $5$, $10$, $20$~cm porównują
+gęstą chmurę punktów mapy z~referencją geometryczną.
+Metryka nie dotyczy algorytmów 2D ani tych, które nie ukończyły trasy.
+
+\subsection{Koszt obliczeniowy}
+
+Rejestrowano średnie obciążenie CPU i~szczytowe zużycie RAM na tym samym
+zestawie sprzętowym.
+
+\section{Wyniki}
+
+\input{chapters/table_bag6}
+
+\subsection{Dokładność trajektorii}
+
+\input{chapters/fig_trajectories_bag6}
+
+RTABMap~LiDAR osiągnął ATE~RMSE $0{,}004$~m --- najniższy wynik spośród
+wszystkich algorytmów.
+EKF ($0{,}007$~m), GMapping ($0{,}015$~m), lidarslam\_ros2 ($0{,}034$~m)
+i~DLIO ($0{,}042$~m) zamknęły stawkę dokładnych wyników (ATE poniżej $0{,}05$~m).
+Pośrednią dokładność uzyskały RTABMap~RGB-D ($0{,}102$~m), MOLA ($0{,}223$~m),
+Cartographer ($0{,}280$~m), KISS-ICP ($0{,}505$~m) i~cuVSLAM ($0{,}712$~m).
+SLAM~Toolbox ($4{,}942$~m), FAST-LIO2 ($3{,}974$~m) i~ORB-SLAM3~Stereo
+($2{,}587$~m) nie ukończyły skutecznie trasy.
+ORB-SLAM3 z~IMU wykazał katastrofalny błąd ($163{,}9$~m).
+
+\subsection{Jakość mapy}
+
+Najlepszą jakość geometryczną mapy uzyskał RTABMap~LiDAR
+(CD $0{,}049$~m, F@20\,cm $= 0{,}999$).
+EKF (CD $0{,}085$~m) i~Cartographer~2D (CD $0{,}103$~m) zajęły kolejne miejsca.
+Algorytmy 2D~SLAM, mimo dobrej dokładności trajektorii, wykazały niskie F-score
+ze względu na płaską strukturę budowanych map.
+
+\subsection{Koszt obliczeniowy}
+
+% TODO: uzupełnić danymi CPU/RAM z eksperymentów
+
+\section{Dyskusja}
+
+\subsection{Metody oparte na LiDAR}
+
+RTABMap~LiDAR dominuje w~obu kategoriach dokładności.
+GMapping sprawdził się w~regularnym środowisku, ale SLAM~Toolbox doznał awarii
+na tych samych danych z~powodu fałszywych zamknięć pętli wynikających
+z~powtarzalności geometrii regałów.
+Oba algorytmy 2D generują mapy płaskie, co odzwierciedlają niskie F-score.
+KISS-ICP i~MOLA~Odometry, jako metody bez zamykania pętli, akumulują dryf
+zgodnie z~oczekiwaniami.
+
+\subsection{Metody LiDAR-IMU}
+
+lidarslam\_ros2 (ATE $0{,}034$~m) potwierdził skuteczność ciasnego sprzężenia.
+FAST-LIO2 nie ukończył trasy (ATE $3{,}974$~m) --- prawdopodobnie z~powodu
+trudności inicjalizacyjnych lub utraty śledzenia w~powtarzalnym środowisku.
+
+\subsection{Metody wizyjne}
+
+RTABMap~RGB-D (ATE $0{,}102$~m) wypadł lepiej niż cuVSLAM ($0{,}712$~m).
+ORB-SLAM3 zawiódł w~obu konfiguracjach; szerokokątny obiektyw kamery Hawk
+($121{,}5°$ FOV) jest niezgodny z~modelem optycznym ORB-SLAM3.
+
+\subsection{Przypadki awarii}
+
+SLAM~Toolbox, FAST-LIO2 i~ORB-SLAM3 nie ukończyły trasy.
+Awarie ujawniają dwie klasy problemów: podatność na repetytywność środowiska
+(SLAM~Toolbox) oraz niezgodność modelu sensora z~algorytmem (ORB-SLAM3).
+
+
+% ═════════════════════════════════════════════════════════════════════════════
+% WERSJA C — narracyjna, analityczna, skupiona na interpretacji
+% ═════════════════════════════════════════════════════════════════════════════
+
+\chapter{Badanie eksperymentalne}
+
+Ocena algorytmów SLAM wymaga jednolitych warunków eksperymentalnych,
+które pozwolą przypisać różnice w~wynikach właściwościom algorytmów,
+a~nie zmienności danych lub sprzętu.
+Niniejszy rozdział opisuje, jak takie warunki zostały zapewnione,
+oraz przedstawia i~interpretuje uzyskane wyniki.
+
+\section{Konfiguracja eksperymentalna}
+
+\subsection{Platforma robotyczna}
+
+Wybór platformy TurtleBot3~Burger był podyktowany jej reprezentatywnością
+dla klasy małych robotów mobilnych działających w~środowiskach wewnętrznych.
+Robot jest niewielki, porusza się z~małą prędkością (do $0{,}22$~m/s)
+i~dysponuje ograniczonymi zasobami mechanicznymi, co odpowiada typowym
+zastosowaniom przemysłowym.
+
+\subsection{Konfiguracja sensoryczna}
+
+Bogaty zestaw sensorów pozwolił testować algorytmy ze wszystkich
+interesujących rodzin bez konieczności zmiany platformy.
+Trójwymiarowy wirujący LiDAR pracujący z~częstotliwością $33{,}6$~Hz dostarcza
+gęstych chmur punktów niezależnych od oświetlenia, lecz podatnych na zniekształcenia
+geometryczne przy ruchu robota.
+Kamera stereo NVIDIA~Hawk o~bazie $100$~mm i~szerokim polu widzenia $121{,}5°$
+dostarcza obrazów stereo i~mapy głębokości, jednak jej niestandardowy kąt
+widzenia okazał się istotnym czynnikiem wpływającym na wyniki algorytmów
+wizyjnych.
+Centrala inercyjna IMU, zintegrowana z~kamerą i~pracująca z~częstotliwością
+$62$~Hz, umożliwia deskewing skanów i~ciasne sprzężenie z~innymi sensorami.
+Odometria kołowa stanowi tanie, choć podatne na błędy uzupełnienie zestawu.
+
+\subsection{Środowisko programowe}
+
+Wspólne środowisko ROS\,2~Humble eliminuje zmienność wynikającą z~różnic
+w~interfejsach oprogramowania.
+Odtwarzanie danych z~nagrania z~prędkością rzeczywistą gwarantuje identyczne
+warunki temporalne dla wszystkich algorytmów.
+Niezbędny preprocessing --- rzutowanie chmury 3D na skan 2D
+i~przypisanie indeksów pierścieni LiDAR --- wykonano jednolicie przed
+uruchomieniem algorytmów, które tego wymagają.
+
+\section{Środowisko symulacyjne}
+
+\subsection{Opis środowiska}
+
+Symulowany magazyn w~NVIDIA~Isaac~Sim stanowi reprezentatywne środowisko
+dla zastosowań logistycznych.
+Regularne rzędy regałów tworzą powtarzalną geometrię, która jest zarówno
+typowa dla rzeczywistych zastosowań, jak i~szczególnie trudna dla algorytmów
+detekcji i~zamykania pętli --- sceny wyglądają podobnie niezależnie od miejsca
+w~korytarzu.
+Ta właściwość środowiska okazała się kluczowa dla zrozumienia niektórych
+obserwowanych wyników.
+
+\subsection{Rejestracja zbioru danych}
+
+Nagranie bag\_6 obejmuje pełną pętlę przez wszystkie korytarze magazynu
+ze wszystkimi tematami sensorycznymi: chmurą punktów LiDAR, obrazami stereo,
+mapą głębokości, danymi IMU i~odometrią kołową.
+
+\subsection{Ekstrakcja danych referencyjnych}
+
+Unikalną zaletą środowiska symulacyjnego jest dostępność dokładnych
+pozycji referencyjnych.
+Dane z~NVIDIA~Isaac~Sim zostały nagrane synchronicznie z~pomiarami sensorycznymi
+i~użyte bezpośrednio jako \textit{ground truth} do obliczenia metryk po
+wyrównaniu Umeyamy.
+
+\section{Metodologia ewaluacji}
+
+\subsection{Dokładność trajektorii}
+
+ATE mierzy globalną spójność trajektorii --- wykazuje, jak bardzo
+estymowana trajektoria odchyla się od referencji po optymalnym wyrównaniu.
+RPE uzupełnia obraz o~lokalną jakość odometryczną, mierząc błąd względny
+między parami poz odległych o~stały krok.
+Połączenie obu metryk pozwala odróżnić algorytmy z~dobrą odometrią lokalną
+ale słabym zamykaniem pętli od tych, które osiągają globalną spójność kosztem
+wyższego błędu lokalnego.
+
+\subsection{Jakość mapy}
+
+Odległość Chamfera i~miara F-score oceniają, czy geometria trójwymiarowej
+mapy wiernie odwzorowuje rzeczywistą strukturę środowiska.
+Metryki te mają sens tylko dla algorytmów produkujących gęste chmury
+punktów 3D --- algorytmy 2D i~te, które nie ukończyły trasy,
+nie mogą być w~ten sposób porównane.
+
+\subsection{Koszt obliczeniowy}
+
+Pomiary CPU i~RAM w~trakcie działania algorytmu na tym samym zestawie
+sprzętowym pozwalają ocenić praktyczną stosowalność algorytmu
+na platformach o~ograniczonych zasobach.
+
+\section{Wyniki}
+
+\input{chapters/table_bag6}
+
+\subsection{Dokładność trajektorii}
+
+\input{chapters/fig_trajectories_bag6}
+
+Wyniki wyraźnie skupiają się w~trzech grupach.
+W~pierwszej, z~ATE poniżej $0{,}05$~m, znalazły się: RTABMap~LiDAR ($0{,}004$~m),
+EKF ($0{,}007$~m), GMapping ($0{,}015$~m), lidarslam\_ros2 ($0{,}034$~m)
+i~DLIO ($0{,}042$~m).
+Wynik EKF jest zaskakujący: algorytm bez geometrycznej korekcji błędów
+uzyskał drugie miejsce, co wynika z~krótkiego czasu trwania nagrania,
+w~którym dryf odometrii nie zdążył narosnąć do dużych wartości.
+
+Środkową grupę (ATE $0{,}1$--$1{,}0$~m) tworzą: RTABMap~RGB-D ($0{,}102$~m),
+MOLA~Odometry ($0{,}223$~m), Cartographer~2D ($0{,}280$~m),
+KISS-ICP ($0{,}505$~m) i~cuVSLAM ($0{,}712$~m).
+Te algorytmy ukończyły trasę z~błędem nadal akceptowalnym w~wielu zastosowaniach,
+lecz wyraźnie ustępują czołówce.
+
+Trzecia grupa obejmuje algorytmy, które nie ukończyły trasy skutecznie:
+ORB-SLAM3~Stereo ($2{,}587$~m), FAST-LIO2 ($3{,}974$~m),
+SLAM~Toolbox ($4{,}942$~m) i~katastrofalnie ORB-SLAM3 z~IMU ($163{,}9$~m).
+
+\subsection{Jakość mapy}
+
+W~klasyfikacji jakości map trójwymiarowych RTABMap~LiDAR jest bezkonkurencyjny:
+odległość Chamfera $0{,}049$~m i~F@20\,cm $= 0{,}999$ oznaczają, że praktycznie
+każdy punkt mapy referencyjnej ma odpowiednik w~mapie estymowanej w~odległości
+poniżej $20$~cm.
+EKF ($0{,}085$~m) i~Cartographer~2D ($0{,}103$~m) zajmują kolejne miejsca,
+co jest interesujące: Cartographer buduje wewnętrznie mapę 2D, ale akumulowane
+skany 3D mają wysoką jakość geometryczną dzięki dobrej estymacji pozycji.
+
+Wyniki GMapping ilustrują rozbieżność między dokładnością trajektorii
+a~jakością mapy 3D: pomimo ATE $0{,}015$~m F-score wynosi jedynie $0{,}113$
+przy progu $20$~cm.
+Wynika to z~płaskiej struktury mapy 2D budowanej przez GMapping ---
+skany 3D są akumulowane bez globalnej spójności w~osi pionowej.
+
+\subsection{Koszt obliczeniowy}
+
+% TODO: uzupełnić danymi CPU/RAM z eksperymentów
+
+\section{Dyskusja}
+
+\subsection{Metody oparte na LiDAR}
+
+RTABMap~LiDAR wykazał, że grafowy SLAM 3D z~geometrycznym zamykaniem pętli
+jest w~stanie uzyskać wyjątkową dokładność nawet w~powtarzalnym środowisku
+magazynowym.
+Zestawienie z~wynikiem SLAM~Toolbox ($4{,}942$~m) --- algorytmu z~tej samej
+rodziny 2D~SLAM co GMapping, lecz z~agresywniejszym mechanizmem zamykania pętli
+--- uwidacznia krytyczne ryzyko fałszywych zamknięć pętli w~środowiskach
+o~regularnej geometrii.
+GMapping, używający probabilistycznego filtra cząsteczkowego zamiast
+deterministycznego dopasowania cech, okazał się bardziej odporny na tę pułapkę.
+
+\subsection{Metody LiDAR-IMU}
+
+Kontrast między lidarslam\_ros2 ($0{,}034$~m) a~FAST-LIO2 ($3{,}974$~m)
+wskazuje, że samo ciasne sprzężenie LiDAR-IMU nie gwarantuje sukcesu.
+FAST-LIO2 jest algorytmem iteracyjnego wygładzania stanu (\textit{IEKF})
+zaprojektowanym przede wszystkim dla dynamicznych środowisk zewnętrznych
+i~mógł nie poradzić sobie z~wolnym ruchem robota w~środowisku wewnętrznym.
+
+\subsection{Metody wizyjne}
+
+Wyniki algorytmów wizyjnych w~dużej mierze determinuje sprzęt kamery.
+RTABMap~RGB-D, korzystający z~gotowej mapy głębokości i~wbudowanego zamykania
+pętli Bag-of-Words, uzyskał akceptowalny wynik ($0{,}102$~m).
+ORB-SLAM3 zawiódł w~obu konfiguracjach; szerokie pole widzenia kamery Hawk
+($121{,}5°$) jest niezgodne z~modelem optycznym ORB-SLAM3, który zakłada
+nieskrzywiony obiektyw o~wąskim kącie, co powoduje znaczące błędy reprojekcji.
+
+\subsection{Przypadki awarii}
+
+Trzy algorytmy nie ukończyły skutecznie trajektorii.
+SLAM~Toolbox ilustruje wrażliwość geometrycznego zamykania pętli na
+repetytywność środowiska.
+FAST-LIO2 wskazuje na trudności z~dopasowaniem parametrów do powolnego ruchu
+w~środowisku wewnętrznym.
+ORB-SLAM3 ujawnia problem niezgodności modelu optycznego z~niestandardową kamerą.
+Wszystkie trzy przypadki stanowią wartościową informację praktyczną: wybór
+algorytmu musi uwzględniać nie tylko średnią dokładność, ale i~warunki,
+w~których algorytm całkowicie zawodzi.

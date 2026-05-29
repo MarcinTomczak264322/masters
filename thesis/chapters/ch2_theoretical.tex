@@ -69,8 +69,7 @@ so the search is confined to a small neighbourhood of the current estimate.
 This knowledge keeps computational cost low but provides no recovery mechanism if the
 robot becomes lost.
 In \emph{global localisation} the starting position is completely unknown, so
-the belief is initialised uniformly over the entire map and converges toward
-the true pose as more observations are collected.
+the belief is uniform over the entire map and converges to true pose with more observations.
 % A harder variant, the \emph{kidnapped robot problem}, arises when the robot is
 % moved to an unknown location during operation without being informed, requiring
 % the system to detect the inconsistency and re-localise from scratch.
@@ -80,24 +79,18 @@ the true pose as more observations are collected.
 
 \subsection{SLAM}
 
-SLAM assumes that neither the robot poses nor the map are known, and solves
-both problems jointly from raw sensor measurements $\mathbf{z}_{1:t}$ and
-motion commands $\mathbf{u}_{1:t}$~\cite[p.~245]{thrun2005probabilistic}.
-This creates a circular dependency: an accurate map requires accurate poses, and
-accurate poses require an accurate map.
-The key mechanism that breaks this cycle is loop closure, where recognising a
-previously visited place adds a long-range constraint that corrects accumulated
-drift across the entire trajectory.
-
-Two problem formulations are common~\cite{thrun2005probabilistic}.
+SLAM assumes that neither the robot poses $\mathbf{x}_{1:t}$ nor the map $\mathbf{m}$
+are known, and estimates both jointly from sensor measurements $\mathbf{z}_{1:t}$
+and motion commands $\mathbf{u}_{1:t}$~\cite[p.~245]{thrun2005probabilistic}.
+Two problem formulations are common~\cite[pp.~245--246]{thrun2005probabilistic}.
 Online SLAM discards past poses and maintains only the current pose
 together with the map:
 \begin{equation}
   p(\mathbf{x}_t,\, \mathbf{m} \mid \mathbf{z}_{1:t},\, \mathbf{u}_{1:t}).
   \label{eq:slam_online}
 \end{equation}
-Full SLAM keeps the entire trajectory in the state and optimises the joint
-posterior over all poses and the map:
+Full SLAM keeps all past poses and estimates the complete trajectory
+together with the map:
 \begin{equation}
   p(\mathbf{x}_{1:t},\, \mathbf{m} \mid \mathbf{z}_{1:t},\, \mathbf{u}_{1:t}).
   \label{eq:slam_full}
@@ -131,13 +124,13 @@ The distance to the reflecting surface is
 
 \noindent where $c$ is the speed of light.
 A rotating 3D LiDAR fires pulses across multiple vertical channels while spinning
-horizontally; each full revolution produces a cloud of tens of thousands of
+horizontally. Each full revolution produces a cloud of tens of thousands of
 points described with $(x, y, z)$ coordinates as a
 \texttt{sensor\_msgs/PointCloud2} message.
 Its main advantages for SLAM are accuracy and independence from ambient lighting.
-A relevant limitation is motion distortion: because points within one scan are
-acquired at slightly different times while the robot moves, the cloud is
-geometrically inconsistent unless corrected.
+A limitation is motion distortion: as the robot moves continuously during a
+scan, successive points are captured from slightly different poses, making
+the resulting cloud geometrically inconsistent without correction.
 
 % A LiDAR (Light Detection And Ranging) sensor measures distances by emitting laser
 % pulses and recording the time it takes for each pulse to return after reflecting
@@ -159,7 +152,8 @@ geometrically inconsistent unless corrected.
 A stereo camera consists of two horizontally separated cameras with a known
 baseline $B$ between them.
 When the same scene point is visible in both images it appears at slightly
-different horizontal positions; this horizontal offset $d$ allows the depth $Z$ to be computed as
+different horizontal positions. This horizontal offset $d$ allows the depth $Z$ to 
+be computed as
 
 \begin{equation}
   Z = \frac{f \cdot B}{d},
@@ -187,33 +181,11 @@ textureless, repeating environments.
 % disparity error corresponds to a large depth error. Cameras also provide rich
 % texture information useful for feature matching and place recognition, but their
 % performance degrades in low-light conditions and in textureless environments.
-
-\subsection{360-Degree Camera}
-
-A 360-degree (omnidirectional) camera captures the full horizontal field of
-view in a single frame, either through a fisheye lens or by stitching multiple
-camera feeds into an equirectangular projection.
-Compared to a standard perspective camera, the wider coverage reduces the risk
-of losing tracked features when the robot rotates sharply, and provides richer
-context for place recognition.
-
-Despite these advantages, 360-degree cameras are not evaluated in this thesis
-for two reasons.
-First, the visual SLAM algorithms considered — ORB-SLAM3 and RTAB-Map — are
-designed around the pinhole camera model; supporting omnidirectional optics
-requires either remapping the image to a perspective projection, which
-discards the wide-angle benefit, or using specialised fisheye variants that
-were outside the scope of this work.
-Second, the simulation environment used (Isaac Sim) does not provide a
-native omnidirectional camera model, making it impractical to generate
-representative training and evaluation data for such a sensor.
-
 \subsection{IMU}
 
 An Inertial Measurement Unit (IMU) combines a three-axis accelerometer and a
 three-axis gyroscope.
-Both outputs are corrupted by a slowly varying bias $\mathbf{b}$ and Gaussian
-noise $\boldsymbol{\eta}$:
+Both outputs are corrupted by a slowly varying bias $\mathbf{b}$ and noise $\boldsymbol{\eta}$:
 
 \begin{equation}
   \tilde{\mathbf{a}} = \mathbf{a} + \mathbf{b}_a + \boldsymbol{\eta}_a, \qquad
@@ -224,11 +196,11 @@ noise $\boldsymbol{\eta}$:
 \noindent where $\tilde{\mathbf{a}}$ and $\tilde{\boldsymbol{\omega}}$ are the
 measured acceleration and angular velocity, and $\mathbf{a}$,
 $\boldsymbol{\omega}$ are the true values.
-These are published as \texttt{sensor\_msgs/Imu} messages with frequency higher other sensors.
-The higher update rate makes the IMU valuable for tracking motion between
-slower LiDAR or camera updates.
-However, integrating noisy, biased signals causes pose errors to grow without
-bound over time, so an IMU must be fused with another sensor for corrections.
+These are published as \texttt{sensor\_msgs/Imu} messages at a higher rate
+than other sensors, providing motion information between slower LiDAR
+or camera updates.
+However, integrating corrupted signals accumulates errors over time, so the
+IMU must be combined with another sensor to remain accurate.
 
 % An Inertial Measurement Unit (IMU) combines a three-axis accelerometer and a
 % three-axis gyroscope. The accelerometer measures specific force (linear
@@ -249,8 +221,8 @@ bound over time, so an IMU must be fused with another sensor for corrections.
 
 Wheel encoders measure the angular velocity of each wheel, from which the
 linear speeds $v_L$ and $v_R$ of the left and right wheels are calculated.
-For a differential-drive robot the pose increment over a time step $\Delta t$
-with orientation $\theta$ is
+For a differential-drive robot moving at heading $\theta$, the pose increment
+over a time step $\Delta t$ is given by:
 
 \begin{equation}
   \Delta x = \frac{v_L + v_R}{2}\,\Delta t\cos\theta, \quad
@@ -261,9 +233,8 @@ with orientation $\theta$ is
 
 \noindent where $L$ is the distance between the wheels.
 Integrating these increments over time provides a pose estimate published as a
-\texttt{nav\_msgs/Odometry} message containing position, orientation, and their
-covariances.
-Wheel odometry is lightweight solution, making it a useful baseline for short-term motion estimation.
+\texttt{nav\_msgs/Odometry} message containing position and orientation.
+Wheel odometry is a useful baseline for short-term motion estimation.
 However, wheel slip and calibration errors in the wheel
 radius and wheel distance cause the estimate to drift over time.
 
@@ -289,6 +260,21 @@ radius and wheel distance cause the estimate to drift over time.
 %   \Delta\theta = \frac{\Delta s_R - \Delta s_L}{L},
 %   \label{eq:wheel_odom}
 % ─────────────────────────────────────────────────────────────────────────────
+
+\subsection{360-Degree Camera}
+
+A 360-degree (omnidirectional) camera captures the full horizontal field of
+view in a single frame, either through a fisheye lens or by stitching multiple
+camera feeds into one projection.
+The wide coverage reduces the risk of losing tracked features during sharp
+rotations and provides richer context for place recognition.
+The main drawbacks are strong lens distortion and the absence of a single
+agreed sensor model, since the term covers fisheye, catadioptric, and
+multi-camera designs without a unified definition.
+This sensor type is not evaluated in this thesis: stereo camera-based visual
+SLAM is used instead, and Isaac Sim does not provide a native omnidirectional
+camera.
+
 \section{Map Representations}
 \label{sec:map_representations}
 

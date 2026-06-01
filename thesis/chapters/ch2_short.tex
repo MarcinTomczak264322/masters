@@ -1,0 +1,432 @@
+\chapter{Theoretical Background}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{SLAM}
+
+SLAM (Simultaneous Localisation and Mapping) estimates the robot trajectory
+$\mathbf{x}_{1:t}$ and the map $\mathbf{m}$ jointly from sensor measurements
+$\mathbf{z}_{1:t}$ and motion commands $\mathbf{u}_{1:t}$~\cite[p.~245]{thrun2005probabilistic}:
+
+\begin{equation}
+  p(\mathbf{x}_{1:t},\, \mathbf{m} \mid \mathbf{z}_{1:t},\, \mathbf{u}_{1:t}).
+  \label{eq:slam_full}
+\end{equation}
+
+\noindent Filter-based methods solve this by maintaining a state distribution
+updated at each measurement; graph-based methods retain the full trajectory and
+enforce global consistency at loop closure.
+These two families are described in Sections~\ref{sec:filters}
+and~\ref{sec:graph_slam}.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Sensors}
+\label{sec:sensors}
+
+This thesis uses four sensor types: a 3D LiDAR, a stereo camera, an IMU, and
+wheel odometry encoders.
+
+\subsection{LiDAR}
+
+A LiDAR measures distances by emitting laser pulses and recording the
+round-trip travel time; the range is $d = c\,\Delta t / 2$.
+A rotating 3D model fires pulses across multiple vertical channels while
+spinning horizontally, producing a cloud of tens of thousands of $(x,y,z)$
+points per revolution~\cite{siegwart2004introduction}.
+Its advantages are metric accuracy and independence from ambient lighting; the
+main limitation is motion distortion, as points within one scan are captured at
+slightly different robot poses.
+
+\subsection{Stereo Camera}
+
+A stereo camera recovers depth from the horizontal disparity $d$ between
+projections of a scene point in two calibrated images separated by baseline $B$:
+
+\begin{equation}
+  Z = \frac{f \cdot B}{d},
+  \label{eq:stereo_depth}
+\end{equation}
+
+\noindent where $f$ is the focal length in pixels~\cite{siegwart2004introduction}.
+Cameras provide rich texture for feature matching but performance degrades in
+low-light or textureless environments.
+
+\subsection{IMU}
+
+An IMU combines a three-axis accelerometer and gyroscope whose outputs are
+corrupted by slowly varying biases and noise~\cite{thrun2005probabilistic}:
+
+\begin{equation}
+  \tilde{\mathbf{a}} = \mathbf{a} + \mathbf{b}_a + \boldsymbol{\eta}_a, \qquad
+  \tilde{\boldsymbol{\omega}} = \boldsymbol{\omega} + \mathbf{b}_g + \boldsymbol{\eta}_g.
+  \label{eq:imu_model}
+\end{equation}
+
+\noindent The IMU runs at high frequency, providing dense motion information
+between slower sensor updates, but must be fused with another sensor to prevent
+drift from accumulating.
+
+\subsection{Wheel Odometry}
+
+Wheel encoders estimate the pose increment from the angular velocities of each
+wheel. For a differential-drive robot at heading $\theta$~\cite{siegwart2004introduction}:
+
+\begin{equation}
+  \Delta x = \frac{v_L + v_R}{2}\,\Delta t\cos\theta, \quad
+  \Delta y = \frac{v_L + v_R}{2}\,\Delta t\sin\theta, \quad
+  \Delta\theta = \frac{v_R - v_L}{L}\,\Delta t,
+  \label{eq:wheel_odom}
+\end{equation}
+
+\noindent where $L$ is the wheel separation. Odometry is a useful short-term
+prior but drifts due to wheel slip and calibration errors.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Map Representations}
+\label{sec:map_representations}
+
+\subsection{Occupancy Grid}
+
+An occupancy grid divides the 2D plane into cells, each updated via the
+log-odds of occupancy~\cite{thrun2005probabilistic}:
+
+\begin{equation}
+  l_{t,i} = \log \frac{p(m_i \mid \mathbf{z}_{1:t},\, \mathbf{x}_{1:t})}
+                      {1 - p(m_i \mid \mathbf{z}_{1:t},\, \mathbf{x}_{1:t})}.
+  \label{eq:log_odds}
+\end{equation}
+
+\noindent Cells above a threshold are marked occupied, those below are free,
+and the remainder stay unknown.
+Occupancy grids directly support path planning but are limited to 2D with
+fixed cell resolution.
+
+\subsection{3D Point Cloud}
+
+A 3D point cloud accumulates LiDAR scan points in a common reference frame,
+capturing the full three-dimensional geometry of the
+environment~\cite{thrun2005probabilistic}.
+It supports geometric evaluation against a reference scan but has higher memory
+usage than an occupancy grid and contains no free-space information.
+Visual SLAM systems produce sparse point clouds of triangulated image features;
+these are not evaluated geometrically in this thesis.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Point Cloud Registration}
+
+Point cloud registration finds the rigid transformation that best aligns two
+overlapping point clouds; in LiDAR SLAM each new scan is aligned to the
+previous one or to the accumulated map to estimate motion.
+
+\subsection{LiDAR Feature Extraction}
+
+Many algorithms reduce computation by extracting geometrically distinctive
+features before registration~\cite{zhang2014loam}.
+The local smoothness of point $i$ is estimated from its neighbours:
+
+\begin{equation}
+  c_i = \frac{1}{\lvert \mathcal{S}_i \rvert \cdot \lVert \mathbf{p}_i \rVert}
+        \left\lVert \sum_{j \in \mathcal{S}_i} (\mathbf{p}_j - \mathbf{p}_i) \right\rVert.
+  \label{eq:smoothness}
+\end{equation}
+
+\noindent Points with high curvature become edge features; those with low
+curvature become planar features. FAST-LIO2 and LIO-SAM both use this step.
+
+\subsection{Iterative Closest Point (ICP)}
+
+ICP~\cite{besl1992icp} alternates between matching each source point to its
+nearest neighbour and minimising:
+
+\begin{equation}
+  E(\mathbf{R}, \mathbf{t}) = \sum_i \lVert \mathbf{R}\mathbf{p}_i + \mathbf{t} - \mathbf{q}_i \rVert^2,
+  \label{eq:icp}
+\end{equation}
+
+\noindent solved in closed form via SVD. ICP is sensitive to initialisation:
+a poor starting estimate can cause convergence to a local minimum.
+
+\subsection{Point-to-Plane ICP}
+
+Point-to-plane ICP~\cite{chen1991point} minimises the distance from each
+source point to the tangent plane at its correspondence:
+
+\begin{equation}
+  E(\mathbf{R}, \mathbf{t}) =
+    \sum_i \bigl((\mathbf{R}\mathbf{p}_i + \mathbf{t} - \mathbf{q}_i)
+                 \cdot \hat{\mathbf{n}}_i \bigr)^2.
+  \label{eq:icp_plane}
+\end{equation}
+
+\noindent Sliding along surfaces incurs no penalty, so convergence is faster
+than point-to-point ICP on planar regions.
+
+\subsection{Generalized ICP (GICP)}
+
+GICP~\cite{segal2009gicp} models each point as a Gaussian over its local
+surface geometry and minimises the sum of Mahalanobis distances between
+corresponding distributions, subsuming both ICP variants.
+It is more robust to sensor noise and is the registration backend of KISS-ICP.
+
+\subsection{Normal Distributions Transform (NDT)}
+
+NDT~\cite{biber2003ndt} subdivides the target into voxels, each summarised by a
+Gaussian $(\boldsymbol{\mu}_k, \boldsymbol{\Sigma}_k)$, and maximises:
+
+\begin{equation}
+  \text{score}(\mathbf{R}, \mathbf{t}) =
+    \sum_i \exp\!\left(
+      -\tfrac{1}{2}(\mathbf{R}\mathbf{p}_i + \mathbf{t} - \boldsymbol{\mu}_k)^\top
+      \boldsymbol{\Sigma}_k^{-1}
+      (\mathbf{R}\mathbf{p}_i + \mathbf{t} - \boldsymbol{\mu}_k)
+    \right).
+  \label{eq:ndt}
+\end{equation}
+
+\noindent The fixed voxel structure gives predictable memory usage and robustness
+to non-uniform point density. MOLA Odometry uses NDT.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Filter-Based State Estimation}
+\label{sec:filters}
+
+Filter-based methods maintain a probability distribution over the robot state
+and update it recursively via predict and correct steps.
+
+\subsection{Extended Kalman Filter (EKF)}
+
+The EKF~\cite{thrun2005probabilistic} represents the state as a Gaussian
+$(\boldsymbol{\mu}_t, \boldsymbol{\Sigma}_t)$ and linearises nonlinear models
+at the current estimate via Jacobians $\mathbf{F}_t$ and $\mathbf{H}_t$.
+The prediction step is:
+
+\begin{equation}
+  \bar{\boldsymbol{\mu}}_t = f(\boldsymbol{\mu}_{t-1}, \mathbf{u}_t), \qquad
+  \bar{\boldsymbol{\Sigma}}_t = \mathbf{F}_t \boldsymbol{\Sigma}_{t-1} \mathbf{F}_t^\top + \mathbf{Q}_t.
+  \label{eq:ekf_predict}
+\end{equation}
+
+\noindent The correction step incorporates the measurement through the Kalman
+gain. The \texttt{robot\_localization} package uses the EKF for dead-reckoning
+in this thesis.
+
+\subsection{Iterated Extended Kalman Filter (iEKF)}
+
+The iEKF re-linearises the observation model around the updated estimate and
+repeats the correction step until convergence, typically within 2 to 5
+iterations, improving accuracy for nonlinear systems.
+FAST-LIO2~\cite{xu2022fastlio2} uses an iEKF on the $SO(3)$ manifold to correct
+pose, velocity, and IMU biases jointly.
+
+\subsection{Rao-Blackwellized Particle Filter}
+
+The RBPF~\cite{thrun2005probabilistic} factors the SLAM posterior by sampling
+robot poses while computing each particle's map analytically.
+Particles are weighted by:
+
+\begin{equation}
+  w_t^{[k]} \propto p\!\left(\mathbf{z}_t \mid \mathbf{x}_t^{[k]},\, \mathbf{m}^{[k]}\right),
+  \label{eq:rbpf_weight}
+\end{equation}
+
+\noindent and low-weight particles are resampled. Loop closure emerges implicitly
+as weights shift when the robot revisits a known area. GMapping uses this approach.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Graph-Based SLAM}
+\label{sec:graph_slam}
+
+Graph-based SLAM retains the full trajectory and enforces global consistency
+whenever a loop closure is detected, unlike filter-based methods which discard
+past information.
+
+\subsection{Pose Graphs}
+
+A pose graph~\cite{grisetti2010tutorial} stores a pose $\mathbf{x}_i \in SE(3)$
+at each node; edges encode relative constraints and their information matrices
+$\boldsymbol{\Omega}_{ij}$. Optimisation minimises:
+
+\begin{equation}
+  F(\mathbf{x}) = \sum_{(i,j)\in\mathcal{E}}
+    \mathbf{e}_{ij}^\top\, \boldsymbol{\Omega}_{ij}\, \mathbf{e}_{ij},
+  \label{eq:pose_graph}
+\end{equation}
+
+\noindent using sparse solvers such as g2o or GTSAM. Cartographer 2D, SLAM
+Toolbox, and RTABMap all use pose graph back-ends.
+
+\subsection{Factor Graphs}
+
+A factor graph~\cite{cadena2016past} generalises pose graphs by allowing nodes
+to represent any variable (poses, IMU biases, landmarks) and edges to encode
+arbitrary probability distributions.
+This is the natural framework for tightly coupled sensor fusion.
+LIO-SAM uses a factor graph combining IMU preintegration, LiDAR odometry, loop
+closure, and GPS constraints.
+
+\subsection{Loop Closure Detection}
+
+Loop closure detection~\cite{cadena2016past} adds long-range constraints when
+the robot revisits a known location, correcting drift that otherwise grows
+indefinitely.
+For LiDAR systems, candidate pairs are verified by ICP; for visual systems, a
+bag-of-words index enables place recognition across the full map history
+(Section~\ref{sec:bow}).
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{IMU Pre-Integration and Deskewing}
+
+A rotating LiDAR acquires points at different robot poses within one scan,
+causing geometric inconsistency. Deskewing corrects each point to a common
+timestamp using IMU-interpolated poses.
+IMU preintegration~\cite{forster2017manifold} accumulates measurements between
+two keyframes into a single relative rotation on $SO(3)$:
+
+\begin{equation}
+  \Delta\hat{\mathbf{R}}_{ij} =
+    \prod_{k=i}^{j-1} \operatorname{Exp}\!\bigl(\tilde{\boldsymbol{\omega}}_k\,\Delta t\bigr),
+  \label{eq:imu_preint}
+\end{equation}
+
+\noindent where $\operatorname{Exp}: \mathfrak{so}(3) \to SO(3)$ is the matrix
+exponential. This constraint is fixed across re-optimisation iterations.
+FAST-LIO2 and LIO-SAM both rely on deskewing and preintegration.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Visual SLAM Fundamentals}
+
+Visual SLAM estimates trajectory from image sequences by tracking sparse
+features. This thesis evaluates feature-based stereo systems that recover
+depth from stereo disparity (Section~\ref{sec:sensors}).
+
+\subsection{Stereo Vision and Triangulation}
+
+Stereo vision~\cite{siegwart2004introduction} recovers the 3D position of a
+scene point from its disparity using Equation~\eqref{eq:stereo_depth}.
+Each matched feature pair is lifted to a 3D landmark by back-projection.
+Depth uncertainty grows quadratically with distance, so distant landmarks are
+typically discarded.
+
+\subsection{Feature Detection and Description}
+
+Visual keypoint detectors identify salient regions and assign binary descriptors
+for matching.
+GFTT selects corners by maximising the smaller eigenvalue of the local gradient
+matrix and is used in RTABMap's front-end.
+ORB~\cite{rublee2011orb} combines FAST keypoints with a rotation-steered BRIEF
+descriptor, giving rotation and scale invariance; it is used by ORB-SLAM3 and
+RTABMap.
+
+\subsection{Visual Odometry}
+
+Visual odometry~\cite{scaramuzza2011visual} estimates incremental motion from
+matched feature tracks via PnP or essential matrix decomposition.
+Local bundle adjustment refines recent poses by minimising reprojection error:
+
+\begin{equation}
+  E = \sum_{i,j} \rho\!\left(
+        \bigl\lVert \mathbf{u}_{ij} - \pi(\mathbf{T}_i,\, \mathbf{l}_j) \bigr\rVert^2
+      \right),
+  \label{eq:reprojection}
+\end{equation}
+
+\noindent where $\mathbf{u}_{ij}$ is the observed keypoint, $\pi$ projects
+landmark $\mathbf{l}_j$ through pose $\mathbf{T}_i \in SE(3)$, and $\rho$ is
+a robust cost function. Errors accumulate without loop closure.
+
+\subsection{Bag-of-Words Place Recognition}
+\label{sec:bow}
+
+BoW place recognition~\cite{galvez2012bags} represents each image as a sparse
+histogram over a visual vocabulary built offline by clustering descriptors.
+At runtime the current histogram is compared to stored ones by cosine similarity;
+high-scoring candidates are verified geometrically with RANSAC before a
+loop-closure edge is added.
+RTABMap uses DBoW3; ORB-SLAM3 uses DBoW2.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Evaluation Metrics}
+\label{sec:eval_metrics}
+
+Trajectory metrics quantify how closely the estimated path matches simulator
+ground-truth poses; map metrics quantify the geometric fidelity of the
+reconstructed 3D point cloud.
+
+\subsection{Umeyama Alignment}
+
+Before computing errors, trajectories are brought into the same frame by
+Umeyama alignment~\cite{umeyama1991least}, which minimises:
+
+\begin{equation}
+  \varepsilon^2(\mathbf{R}, \mathbf{t}, c) =
+    \frac{1}{n}\sum_{i=1}^{n}
+    \lVert \mathbf{q}_i - (c\mathbf{R}\mathbf{p}_i + \mathbf{t}) \rVert^2,
+  \label{eq:umeyama_cost}
+\end{equation}
+
+\noindent where $\mathbf{p}_i$ are estimated positions and $\mathbf{q}_i$ are
+ground-truth positions. For metric sensors the scale is fixed at $c = 1$,
+reducing alignment to $SE(3)$.
+
+\subsection{Absolute Trajectory Error (ATE)}
+
+ATE~\cite{sturm2012benchmark} measures global consistency as the RMSE of
+per-pose translational errors after alignment:
+
+\begin{equation}
+  \text{ATE} = \sqrt{\frac{1}{n}\sum_{i=1}^{n}
+               \lVert \hat{\mathbf{p}}_i - \mathbf{p}_i^* \rVert^2}.
+  \label{eq:ate}
+\end{equation}
+
+\noindent A large ATE indicates drift or absent loop closure. Mean and maximum
+errors are also reported.
+
+\subsection{Relative Pose Error (RPE)}
+
+RPE~\cite{sturm2012benchmark} measures local odometric accuracy by comparing
+consecutive relative motions between estimate and ground truth:
+
+\begin{equation}
+  \text{RPE} = \sqrt{\frac{1}{n-1}\sum_{i=1}^{n-1}
+               \lVert \mathbf{e}_{i}^{\,\text{trans}} \rVert^2}.
+  \label{eq:rpe}
+\end{equation}
+
+\noindent RPE captures short-term drift that ATE may hide after loop closure.
+
+\subsection{Chamfer Distance}
+
+Chamfer Distance~\cite{fan2017point} measures geometric fidelity between the
+estimated map $\mathcal{A}$ and reference $\mathcal{B}$:
+
+\begin{equation}
+  \text{CD}(\mathcal{A},\mathcal{B}) =
+    \frac{1}{|\mathcal{A}|}\sum_{\mathbf{a}\in\mathcal{A}}
+      \min_{\mathbf{b}}\lVert\mathbf{a}-\mathbf{b}\rVert
+    +
+    \frac{1}{|\mathcal{B}|}\sum_{\mathbf{b}\in\mathcal{B}}
+      \min_{\mathbf{a}}\lVert\mathbf{b}-\mathbf{a}\rVert.
+  \label{eq:chamfer}
+\end{equation}
+
+\noindent CD is reported in metres but is sensitive to outlier points.
+
+\subsection{F-score}
+
+The F-score~\cite{knapitsch2017tanks} combines precision and recall at a
+distance threshold $d$:
+
+\begin{align}
+  P(d) &= \frac{1}{|\mathcal{A}|}
+          \bigl|\{\mathbf{a}\in\mathcal{A} :
+          \min_{\mathbf{b}}\lVert\mathbf{a}-\mathbf{b}\rVert < d\}\bigr|, \\[4pt]
+  R(d) &= \frac{1}{|\mathcal{B}|}
+          \bigl|\{\mathbf{b}\in\mathcal{B} :
+          \min_{\mathbf{a}}\lVert\mathbf{b}-\mathbf{a}\rVert < d\}\bigr|, \\[4pt]
+  F(d) &= \frac{2\,P(d)\,R(d)}{P(d)+R(d)}.
+  \label{eq:fscore}
+\end{align}
+
+Three thresholds are used: $d = 5$\,cm (strict), $d = 10$\,cm (moderate), and
+$d = 20$\,cm (lenient). Unlike CD, the F-score is bounded to $[0,1]$ and is not
+dominated by outliers.

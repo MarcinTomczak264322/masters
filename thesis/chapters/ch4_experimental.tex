@@ -25,22 +25,20 @@ The robot is equipped with four sensors that together cover the modalities
 evaluated in this thesis.
 
 \begin{itemize}
-  \item \textbf{3D LiDAR.} A rotating 3D LiDAR operating at $33.6$\,Hz
-        (scan period $\approx 30$\,ms), producing dense point clouds published
-        as \texttt{sensor\_msgs/PointCloud2}.
+  \item 3D LiDAR. A rotating 3D LiDAR operating at $33.6$\,Hz
+        (scan period $\approx 30$\,ms), producing dense point clouds.
 
-  \item \textbf{Stereo camera.} A Leopard Imaging LI-AR0234CS-NVIDIA Hawk
+  \item Stereo camera. A Leopard Imaging LI-AR0234CS-NVIDIA Hawk
         stereo camera with a $100$\,mm baseline, $1920 \times 1200$\,px
         resolution per lens, and a $121.5^{\circ}$ horizontal field of view, recording
         at $60$\,fps.
         A depth map at $640 \times 360$\,px is also provided.
 
-  \item \textbf{IMU.} An inertial measurement unit integrated with the camera
+  \item IMU. An inertial measurement unit integrated with the camera
         module, publishing linear acceleration and angular velocity at
-        approximately $62$\,Hz as \texttt{sensor\_msgs/Imu}.
+        approximately $62$\,Hz.
 
-  \item \textbf{Wheel odometry.} Pose increments derived from motor encoders,
-        published as \texttt{nav\_msgs/Odometry}.
+  \item Wheel odometry. Pose increments derived from motor encoders.
 \end{itemize}
 
 \subsection{Software Framework}

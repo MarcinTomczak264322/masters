@@ -30,8 +30,6 @@ It can be decomposed into five components:
 
 SLAM combines components 2 and 3, estimating the robot pose and the
 map simultaneously without prior knowledge.
-This thesis focuses on SLAM, therefore path planning and motion control are not
-evaluated. The robot trajectory is pre-recorded and replayed from a dataset.
 
 \subsection{Mapping}
 
@@ -88,7 +86,7 @@ described in Sections~\ref{sec:filters} and~\ref{sec:graph_slam} respectively.
 
 Sensors provide the data necessary for SLAM implementation.
 This thesis uses four sensor types: a 3D LiDAR, a stereo camera, an IMU, and wheel
-odometry encoders.
+odometry encoders, each described in its subsection below.
 
 \subsection{LiDAR}
 
@@ -107,7 +105,7 @@ horizontally. Each full revolution produces a cloud of tens of thousands of $(x,
 Its main advantages for SLAM are accuracy and independence from ambient
 lighting.
 The main drawback is continuous movement of the robot during a single
-scan. As a result, successive points are captured from slightly different poses, making
+scan. As a result, points from the same scan are captured from slightly different poses, making
 the resulting cloud geometrically inconsistent without correction.
 
 % A LiDAR (Light Detection And Ranging) sensor measures distances by emitting laser
@@ -143,7 +141,7 @@ be computed as
 Cameras capture dense appearance information from which features can be
 extracted for feature matching and place recognition.
 However, if the environment lacks distinctive texture, stereo vision fails
-to find reliable correspondences~\cite[p.~113]{siegwart2004introduction}.
+to find reliable matches~\cite[p.~113]{siegwart2004introduction}.
 
 % Its main advantage for SLAM is that it captures visual appearance
 % alongside depth, which is useful for feature matching and recognising
@@ -182,7 +180,7 @@ $\boldsymbol{\omega}$ are the true values.
 The IMU runs at a higher rate than other sensors, providing motion information
 between slower LiDAR or camera updates.
 However, integrating corrupted signals accumulates errors over time, so the
-IMU must be combined with another sensor to remain accurate~\cite[p.~91]{thrun2005probabilistic}.
+IMU must be combined with another sensor to remain accurate~\cite{forster2017manifold}.
 
 % An Inertial Measurement Unit (IMU) combines a three-axis accelerometer and a
 % three-axis gyroscope. The accelerometer measures specific force (linear
@@ -293,7 +291,7 @@ mapping, determines the spatial resolution of the map.
 \subsection{3D Point Cloud}
 
 A 3D point cloud is an unordered set of points in a common reference frame,
-each defined by its $(x, y, z)$ coordinates~\cite[p.~221]{thrun2005probabilistic}.
+each defined by its $(x, y, z)$ coordinates~\cite{cadena2016past}.
 A global map is built by registering each incoming LiDAR scan into the map
 frame using the estimated robot pose and accumulating the resulting points.
 The resulting map captures the full three-dimensional geometry of the environment.
@@ -302,9 +300,8 @@ Point clouds are well suited for geometric inspection and for evaluating map
 quality against a reference scan.
 Their drawbacks are high memory consumption in large environments and the
 absence of information about free-space: unlike an occupancy grid, a point cloud
-records only observed surfaces, not which regions are reachable.
+records only observed surfaces, not which regions are reachable for the robot.
 
-% add source
 Visual SLAM methods do not accumulate dense range measurements.
 Instead, they build sparse point clouds by triangulating matched image
 features into 3D landmarks.
@@ -448,7 +445,7 @@ GICP is the default registration method of KISS-ICP.
 NDT~\cite{biber2003ndt} avoids finding point pairs entirely.
 The target cloud is divided into a 3D voxel grid.
 For each voxel, the average position and the spread of all points inside it
-are computed, describing where the surface is and how flat or scattered it is.
+are computed, describing where the surface is and its local shape.
 To find the alignment, each source point is transformed and the algorithm
 checks how well it fits into the surface description of the voxel it lands in.
 The transformation is adjusted until the source points fit the target
@@ -456,8 +453,8 @@ descriptions as well as possible.
 Because the fit measure changes smoothly as the transformation changes, the
 optimisation is more stable than ICP, which can jump when matched pairs
 suddenly switch.
-The fixed voxel grid also makes memory usage predictable and the surface
-descriptions average out noise from uneven point density.
+% The fixed voxel grid also makes memory usage predictable and the surface
+% descriptions average out noise from uneven point density.
 MOLA Odometry uses NDT.
 
 % ─────────────────────────────────────────────────────────────────────────────
@@ -506,14 +503,11 @@ In the prediction step, the motion model is used to estimate where the robot
 moved to, causing the confidence to decrease.
 In the correction step, a new sensor measurement is used to pull the estimate
 toward what the sensor observed, and the confidence increases.
-In this thesis the EKF is used by the robot\_localization package to fuse
-wheel odometry and IMU data into a dead-reckoning pose estimate.
 
 The iterated variant (iEKF)~\cite{bell1993iterated} improves on this by
 repeating the correction step several times, each time re-approximating the
 sensor model at the latest corrected estimate rather than the original one.
 This gives a more accurate result when the sensor model is strongly nonlinear.
-FAST-LIO2 uses an iEKF to correct pose, velocity, and IMU biases simultaneously.
 
 \subsection{Rao-Blackwellized Particle Filter}
 
@@ -758,19 +752,20 @@ each one in a way that allows it to be recognised in later frames.
 A good feature to track is a corner, not an edge.
 On an edge, a feature can slide along it without the tracker noticing.
 A corner is uniquely located and stays put.
-The Good Features to Track (GFTT) detector~\cite{shi1994good} selects points
-where the image intensity changes strongly in all directions, not just one.
+The Good Features to Track (GFTT) detector~\cite{shi1994good} selects corners,
+points that look distinct from every direction and therefore cannot be
+confused with neighbouring points.
 GFTT is commonly used in visual SLAM systems where reliable tracking is
 more important than distinctive appearance description.
 
-ORB (Oriented FAST and Rotated BRIEF)~\cite{rublee2011orb} is a fast
-alternative to heavier descriptors such as SIFT and SURF.
-It finds corners, determines the local patch orientation, and builds a compact
-binary fingerprint using that orientation to achieve rotation invariance.
-Matching is done by counting differing bits between two fingerprints, which is
-fast to compute.
-Running the detector at multiple zoom levels gives scale robustness.
-ORB is widely used in visual SLAM systems.
+% ORB (Oriented FAST and Rotated BRIEF)~\cite{rublee2011orb} is a fast
+% alternative to heavier descriptors such as SIFT and SURF.
+% It finds corners, determines the local patch orientation, and builds a compact
+% binary fingerprint using that orientation to achieve rotation invariance.
+% Matching is done by counting differing bits between two fingerprints, which is
+% fast to compute.
+% Running the detector at multiple zoom levels gives scale robustness.
+% ORB is widely used in visual SLAM systems.
 
 \subsection{Visual Odometry}
 
@@ -865,104 +860,95 @@ A SLAM algorithm starts its own coordinate frame from the first sensor
 measurement, so the estimated trajectory may be shifted or rotated relative
 to the ground truth.
 Before measuring errors, the two trajectories are aligned using the method
-of Umeyama~\cite{umeyama1991least}, which finds the rotation and translation
-that bring them as close together as possible.
-For LiDAR-based systems the scale is fixed to one, so only the orientation
-and position offset are corrected.
+of Umeyama~\cite{umeyama1991least}, which finds the rotation, translation,
+and scale factor that bring them as close together as possible.
+All sensors used in this thesis produce metric measurements, so the scale
+is fixed to one and only the orientation and position offset are corrected.
 
 \subsection{Absolute Trajectory Error (ATE)}
 
-The Absolute Trajectory Error measures the global geometric consistency
-of the estimated path~\cite{sturm2012benchmark}.
-After Umeyama alignment, the translational error at each time step $i$ is
-the Euclidean distance between the aligned estimated position
-$\hat{\mathbf{p}}_i$ and the ground truth position $\mathbf{p}_i^*$.
+ATE measures how closely the estimated trajectory matches the ground truth
+over the full run~\cite{sturm2012benchmark}.
+After Umeyama alignment, the error at each pose is the straight-line distance
+between the estimated position and the ground-truth position.
 The RMSE over all $n$ poses is
 
 \begin{equation}
   \text{ATE} = \sqrt{\frac{1}{n}\sum_{i=1}^{n}
-               \lVert \hat{\mathbf{p}}_i - \mathbf{p}_i^* \rVert^2}.
+               \lVert \hat{\mathbf{p}}_i - \mathbf{p}_i^* \rVert^2},
   \label{eq:ate}
 \end{equation}
 
-A large ATE indicates that the algorithm accumulates drift over the full
-trajectory, or that loop closure is absent or ineffective.
-In addition to the RMSE, the mean and maximum translational errors are
-reported to characterise the error distribution.
+\noindent where $\hat{\mathbf{p}}_i$ is the estimated position and
+$\mathbf{p}_i^*$ is the ground-truth position at time step $i$.
+A large ATE indicates that the algorithm drifts over the full trajectory,
+or that loop closure is absent or ineffective.
 
 \subsection{Relative Pose Error (RPE)}
 
-The Relative Pose Error measures local odometric accuracy independently of
-the global alignment~\cite{sturm2012benchmark}.
-For each consecutive pose pair $(i,\, i{+}1)$ the relative motion is
-computed both in the estimate and in the ground truth, and the translational
-part of the residual between the two relative poses is taken as the local
-error.
-The RMSE over all such pairs is
+RPE measures local accuracy step by step, without depending on the global
+alignment~\cite{sturm2012benchmark}.
+For each consecutive pose pair the motion predicted by the estimate is
+compared to the actual motion in the ground truth.
+The translational difference between the two is the local error for that step.
+The RMSE over all $m = n-1$ steps is
 
 \begin{equation}
-  \text{RPE} = \sqrt{\frac{1}{n-1}\sum_{i=1}^{n-1}
+  \text{RPE} = \sqrt{\frac{1}{m}\sum_{i=1}^{m}
                \lVert \mathbf{e}_{i}^{\,\text{trans}} \rVert^2},
   \label{eq:rpe}
 \end{equation}
 
 \noindent where $\mathbf{e}_{i}^{\,\text{trans}}$ is the translational
-component of the residual between the relative pose in the estimate and the
-relative pose in the ground truth over the same one-step window.
-Because RPE is computed over short, fixed-length windows it captures
-short-term drift that ATE may hide through loop-closure corrections.
+difference between the estimated and ground-truth one-step motions.
+Because RPE is computed step by step, it captures short-term drift that
+ATE may hide when loop closure corrects the global trajectory.
 
 \subsection{Chamfer Distance}
 
-The Chamfer Distance (CD) is a symmetric measure of geometric fidelity
-between two point clouds~\cite{fan2017point}.
-Given an estimated cloud $\mathcal{A}$ and a reference cloud $\mathcal{B}$,
-it averages the mean nearest-neighbour distance in both directions:
+The Chamfer Distance (CD) measures how well two point clouds match each
+other~\cite{wu2021chamfer}.
+For each point in the estimated cloud the distance to the nearest point in
+the reference cloud is found, and vice versa.
+CD sums the mean distances in both directions:
 
 \begin{equation}
-  \text{CD}(\mathcal{A},\mathcal{B}) =
-    \frac{1}{2}\left(
-    \frac{1}{|\mathcal{A}|}\sum_{\mathbf{a}\in\mathcal{A}}
-      \min_{\mathbf{b}\in\mathcal{B}}\lVert\mathbf{a}-\mathbf{b}\rVert
+  d_{CD}(S_1, S_2) =
+    \frac{1}{|S_1|}\sum_{x\in S_1}\min_{y\in S_2}\lVert x-y\rVert_2
     +
-    \frac{1}{|\mathcal{B}|}\sum_{\mathbf{b}\in\mathcal{B}}
-      \min_{\mathbf{a}\in\mathcal{A}}\lVert\mathbf{b}-\mathbf{a}\rVert
-    \right).
+    \frac{1}{|S_2|}\sum_{y\in S_2}\min_{x\in S_1}\lVert y-x\rVert_2.
   \label{eq:chamfer}
 \end{equation}
 
-The first term penalises spurious points in the estimate that have no
-counterpart in the reference. The second term penalises incomplete regions
-of the map.
-CD is reported in metres and reflects the overall geometric accuracy of the
-reconstructed map, but is sensitive to outlier points, which can inflate the
-score without reflecting a systematic reconstruction failure.
+\noindent where $S_1$ is the estimated cloud, $S_2$ is the reference cloud,
+and $x$, $y$ denote individual points in each cloud.
+
+The first term catches extra points in the estimate that are far from the
+reference. The second term catches parts of the reference that the estimate
+misses.
+CD is reported in metres, but a small number of outlier points can inflate
+the score without reflecting a real mapping failure.
 
 \subsection{F-score}
 
 The F-score at a distance threshold $d$ combines precision and recall into a
-single bounded quality measure~\cite{knapitsch2017tanks}.
-Precision measures how accurate the estimated map is: a high precision means
-most points in the estimate are close to the reference.
-Recall measures how complete the estimated map is: a high recall means most
-parts of the reference are covered by the estimate.
-A point $\mathbf{a} \in \mathcal{A}$ is considered correct if its nearest
-neighbour in $\mathcal{B}$ is at most $d$ away, and vice versa:
+single quality measure~\cite{knapitsch2017tanks}.
+Precision measures the accuracy of the reconstruction: how many estimated
+points are close to the ground truth.
+Recall measures completeness: how much of the ground truth is covered by
+the estimate.
+Both are computed as the fraction of points within distance $d$ of the
+other cloud.
+They are combined into a single score:
 
-\begin{align}
-  P(d) &= \frac{1}{|\mathcal{A}|}
-          \bigl|\{\mathbf{a}\in\mathcal{A} :
-          \min_{\mathbf{b}}\lVert\mathbf{a}-\mathbf{b}\rVert \leq d\}\bigr|, \\[4pt]
-  R(d) &= \frac{1}{|\mathcal{B}|}
-          \bigl|\{\mathbf{b}\in\mathcal{B} :
-          \min_{\mathbf{a}}\lVert\mathbf{b}-\mathbf{a}\rVert \leq d\}\bigr|, \\[4pt]
-  F(d) &= \frac{2\,P(d)\,R(d)}{P(d)+R(d)}.
+\begin{equation}
+  F(d) = \frac{2\,P(d)\,R(d)}{P(d)+R(d)}.
   \label{eq:fscore}
-\end{align}
+\end{equation}
 
 Three thresholds are used in this thesis: 5\,cm, 10\,cm, and 20\,cm.
 A tight threshold such as 5\,cm only counts a point as correctly placed if
 it is very close to the reference.
 A loose threshold such as 20\,cm is more forgiving and rewards overall
 completeness.
-The F-score is always between 0 and 1, where 1 means a perfect match.
+The F-score is in $[0,\,1]$, where 1 means a perfect match.

@@ -2,6 +2,8 @@
 
 \chapter{Algorithm description}
 
+Here add why these algorithms were chosen.
+
 This chapter describes each of the \numalgorithms{} algorithms evaluated in this thesis,
 grouped by method family. Table~\ref{tab:algo_overview}
 lists them with their sensors and method families.
@@ -55,7 +57,7 @@ These methods do not build a global map and do not detect loop closures, which
 leads estimation error to accumulate proportionally to travelled distance.
 
 LiDAR odometry is computationally efficient and works without visual features.
-Methods that add loop closure or IMU fusion should outperform it 
+Methods that add loop closure or IMU fusion should outperform it, 
 especially on longer trajectories.
 
 \subsection{KISS-ICP}
@@ -82,8 +84,8 @@ configuration than KISS-ICP.
 2D LiDAR SLAM is designed for planar laser scanners that produce a single
 horizontal sweep of range measurements. Representing the environment as a
 horizontal plane reduces the pose estimation problem from 6-DoF to 3-DoF
-($x$, $y$, $\theta$). This simplification lowers computational cost and is a
-valid for wheeled robots on flat floors, but it discards all
+($x$, $y$, $\theta$). This simplification lowers computational cost and is valid for wheeled robots
+on flat floors, but it discards all
 height information. 2D SLAM is therefore unsuitable when full spatial reconstruction is needed or
 when the robot operates on uneven terrain. The TurtleBot3 platform evaluated
 in this thesis is a wheeled robot operating on a flat floor, so the planar
@@ -149,10 +151,9 @@ system developed at Université de Sherbrooke. Pose estimates come from ICP-base
 matching against a local point cloud map. The pose graph is globally optimised whenever
 a loop closure is detected.
 
-Loop closure detection is appearance-based. The system compares descriptors
-(compact numerical summaries of the scan's geometric structure) of the current
-scan against all stored nodes in the map, not just nearby ones. This means a
-revisit can be detected even after a long detour, which methods that only search nearby nodes would miss.
+Loop closure detection is appearance-based: compact descriptors of each scan
+are compared against all stored nodes, enabling detection of revisits after
+long detours (Section~\ref{sec:loop_closure}).
 
 To keep computation bounded, memory is split into Working Memory (WM) and Long-Term
 Memory (LTM). When processing time exceeds a set threshold, the least-visited nodes
@@ -219,7 +220,7 @@ Visual SLAM estimates the trajectory from image sequences using feature-based st
 The fundamental weakness is texture dependency: flat or uniformly coloured surfaces
 produce few keypoints and the system loses tracking.
 
-Three systems are evaluated, all using a stereo camera pair.
+Two systems are evaluated, both using a stereo camera pair.
 
 \subsection{cuVSLAM}
 

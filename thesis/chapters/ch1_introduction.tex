@@ -2,45 +2,79 @@
 
 Simultaneous Localisation and Mapping (SLAM) is one of the fundamental problems in
 mobile robotics~\cite{leonard1991mobile}.
-It combines two tasks:
-localisation which estimates the robot's position and orientation, and
-mapping which builds a spatial model of the surrounding environment.
-In SLAM, neither is assumed to be known in advance, so
-both must be estimated at the same time from noisy sensor data.
-Without a map the robot cannot plan paths or recognise places it has visited
-before and without knowing its own position it cannot build a correct map.
-Since GPS is unavailable in most indoor environments, SLAM is essential for
-any robot that must work autonomously indoors.
+SLAM poses a question: how a robot can build a consistent map of an unknown environment while
+simultaneously estimating its own position within that map.
+\emph{Localisation} refers to estimating the state of the robot, which
+consists of position and orientation of the robot.
+\emph{Mapping} refers to construction of a spatial model of the surrounding environment.
+Having a map is useful for two reasons~\cite{cadena2016past}.
+First, it enables downstream tasks such as navigation planning and
+environment visualisation for a human user.
+Second, it keeps localisation errors in check by letting the robot recognise
+where it has already been.
+SLAM is therefore considered a state of the art for autonomous robots that must
+operate without GPS.
 
-The difficulty of SLAM problem comes from mutual dependency of two subtasks.
-A correct map can only be built if the robot knows its position, and position
-can only be estimated if there is a map to match against.
-Even with a good algorithm, small sensor errors add up over time.
-The key correction mechanism is loop closure~\cite{cadena2016past}: when
-the robot returns to a place it has already visited, it recognises the match
-and uses it to correct the drift that has built up in its trajectory.
-Without it, errors grow without bound and SLAM algorithms fail.
+% Simultaneous Localisation and Mapping (SLAM) is one of the fundamental problems in
+% mobile robotics~\cite{leonard1991mobile}.
+% It combines two tasks:
+% localisation which estimates the robot's pose, and
+% mapping which builds a spatial model of the surrounding environment.
+% In SLAM, neither is assumed to be known in advance, so
+% both must be estimated at the same time from noisy sensor data.
+% Without a map the robot cannot plan paths or recognise places it has visited
+% before and without knowing its own position it cannot build a correct map.
+% Since GPS is unavailable in most indoor environments, SLAM is essential for
+% any robot that must work autonomously indoors.
 
-The problem was first formalised in 1986 by Smith, Self, and
-Cheeseman~\cite{smith1990estimating} and independently by
-Durrant-Whyte~\cite{durrantwhyte1988uncertain}, who described how to reason
-probabilistically about robot pose and map uncertainty.
-The term SLAM was coined at the International Symposium on Robotics
-Research (ISRR) in 1995~\cite{durrant2006simultaneous}.
-Early solutions used Extended Kalman Filters, Rao-Blackwellised Particle
-Filters, and maximum likelihood estimation.
-Research then focused on observability, convergence, and consistency, which
-led to the first widely used open-source libraries~\cite{cadena2016past}.
-Supported sensors have since expanded from 2D laser scanners to 3D LiDARs,
-cameras, and tightly-coupled inertial systems. The current focus has
-shifted to robust long-term operation.
+The difficulty of the SLAM problem lies in the mutual dependency of its two components.
+A good map can only be built if the robot knows its position, and the robot can only
+determine its position if it already has a map.
+Both must therefore be estimated at the same time from noisy sensor data.
+The key mechanism that prevents errors from growing indefinitely is \emph{loop closure}:
+when the robot returns to a place it has already visited, it detects the match and uses
+it to correct the drift that has built up in its trajectory.
+Without it, errors accumulate without bound~\cite{cadena2016past}.
 
-SLAM has been evolving since its formulation four decades ago, driven largely by the
-growing use of mobile robots in indoor environments such as homes or
-warehouses, where GPS is not available. Today it is used across many
-domains: robotic vacuum cleaners navigate home environments, autonomous
-vehicles map urban roads, unmanned aerial vehicles use it for inspection
-and surveillance, and underwater drones can monitor coral reefs or detect mines.
+% The difficulty of SLAM problem comes from mutual dependency of its two subtasks.
+% A correct map can only be built if the robot knows its position, and position
+% can only be estimated if there is a map to match against.
+% Even with a good algorithm, small sensor errors add up over time.
+% The key correction mechanism is loop closure~\cite{cadena2016past}: when
+% the robot returns to a place it has already visited, it recognises the match
+% and uses it to correct the drift that has built up in its trajectory.
+% Without it, errors grow without bound and SLAM algorithms fail.
+
+The origins of SLAM research trace back to 1986, when Smith, Self, and Cheeseman~\cite{smith1990estimating},
+and independently Durrant-Whyte~\cite{durrantwhyte1988uncertain}, first described geometric uncertainty and the
+statistical relationships between robot poses and environmental
+landmarks. The term \emph{SLAM} itself was
+coined at the International Symposium on Robotics Research (ISRR) in
+1995~\cite{durrant2006simultaneous}.
+Early work introduced the main
+probabilistic formulations: Extended Kalman Filters, Rao-Blackwellised
+Particle Filters, and maximum likelihood estimation.
+In following years, research
+focused on observability, convergence, and consistency, which produced the
+first widely used open-source libraries~\cite{cadena2016past}.
+Since then, supported sensors
+have expanded from 2D laser scanners to 3D LiDARs, cameras, and
+tightly-coupled inertial systems, and the current research focus has shifted
+towards robust long-term operation.
+
+% The problem was first formalised in 1986 by Smith, Self, and
+% Cheeseman~\cite{smith1990estimating} and independently by
+% Durrant-Whyte~\cite{durrantwhyte1988uncertain}, who described how to reason
+% probabilistically about robot pose and map uncertainty.
+% The term SLAM was coined at the International Symposium on Robotics
+% Research (ISRR) in 1995~\cite{durrant2006simultaneous}.
+% Early solutions used Extended Kalman Filters, Rao-Blackwellised Particle
+% Filters, and maximum likelihood estimation.
+% Research then focused on observability, convergence, and consistency, which
+% led to the first widely used open-source libraries~\cite{cadena2016past}.
+% Supported sensors have since expanded from 2D laser scanners to 3D LiDARs,
+% cameras, and tightly-coupled inertial systems. The current focus has
+% shifted to robust long-term operation.
 
 % SLAM is used wherever GPS is unavailable: robotic vacuum cleaners navigate
 % home floors, autonomous vehicles map city roads, inspection drones survey
@@ -48,13 +82,12 @@ and surveillance, and underwater drones can monitor coral reefs or detect mines.
 % The technology has been evolving for four decades, pushed largely by the
 % growing number of mobile robots deployed in homes and warehouses.
 
-Despite four decades of progress, SLAM is not a fully solved
-problem~\cite{cadena2016past}. It can work reliably for slow-moving robots in
-static indoor environments, but can struggle in fast-moving or highly dynamic
-outdoor scenarios. Many open-source implementations exist, each making different design choices
-with different trade-offs.
-Choosing the right algorithm for a given robot and environment is not obvious,
-which motivates a direct, controlled comparison.
+SLAM has been evolving since its formulation four decades ago, driven largely by the
+growing use of mobile robots in indoor environments such as homes or
+warehouses, where GPS is not available. Today it is used across many
+domains: robotic vacuum cleaners navigate home environments, autonomous
+vehicles map urban roads, unmanned aerial vehicles use it for inspection
+and surveillance, and underwater drones can monitor coral reefs or detect mines.
 
 % It still does not work reliably in all conditions.
 % Fast motion, highly dynamic environments, and long corridors with repetitive
@@ -64,25 +97,54 @@ which motivates a direct, controlled comparison.
 % Choosing the right algorithm for a given robot and environment is not obvious,
 % which motivates a direct, controlled comparison.
 
+Despite four decades of progress, SLAM is not a fully solved
+problem~\cite{cadena2016past}. It can work reliably for slow-moving robots in
+static indoor environments, but can struggle in fast-moving or highly dynamic
+outdoor scenarios. Many open-source implementations exist, each making different design choices
+with different trade-offs.
+Choosing the right algorithm for a given robot and environment is not obvious,
+which motivates a direct, controlled comparison.
+
 \section{Goal and Scope}
 
-The goal of this thesis is to evaluate eleven SLAM algorithms under identical conditions on a 
-simulated, differential drive robotic platform equipped with a 3D LiDAR, a stereo camera, and an 
-IMU.
-The algorithms cover the main families: sensor fusion, LiDAR odometry, 2D
-and 3D LiDAR SLAM, tightly-coupled LiDAR-IMU SLAM, and visual SLAM.
+The goal of this thesis is to evaluate and compare SLAM algorithms across different sensor
+modalities and algorithmic families under identical, controlled conditions.
+The evaluation is carried out on a simulated mobile robot platform equipped with differential drive,
+a 3D LiDAR, a stereo camera, and an IMU.
+Ten algorithms are selected to cover the major algorithmic families: sensor fusion,
+LiDAR odometry, 2D and 3D LiDAR SLAM, tightly-coupled LiDAR-IMU odometry, and
+visual SLAM.
 
-All algorithms are tested on a single dataset recorded in NVIDIA Isaac Sim,
-which provides exact ground-truth poses.
-All experiments run under ROS\,2 (Robot Operating System).
+All algorithms are tested on the same dataset recorded from simulated
+environment in NVIDIA Isaac Sim, which provides exact ground-truth poses for objective
+evaluation.
+The framework used for all experiments is ROS\,2 (Robot Operating System), which
+provides a common interface for sensor data, algorithm execution, and data recording.
 
-Trajectory accuracy is measured using Absolute Trajectory Error (ATE) and
-Relative Pose Error (RPE) against the simulator ground truth.
-Map quality is assessed with Chamfer distance and F-score for algorithms that
-produce a 3D point cloud, and visually for those that produce an occupancy
-grid.
-Computational cost is measured as mean CPU load and peak RAM usage during
+Trajectory accuracy is quantified using Absolute Trajectory Error and Relative Pose Error
+against the simulator's ground truth.
+Map quality is assessed with Chamfer distance and F-score metrics for algorithms that
+produce a 3D point cloud, and visually for those that produce an occupancy grid.
+Computational cost is measured as mean CPU usage and peak RAM consumption during
 execution.
+
+% The goal of this thesis is to evaluate ten SLAM algorithms under identical conditions on a
+% simulated, differential drive robotic platform equipped with a 3D LiDAR, a stereo camera, and an
+% IMU.
+% The algorithms cover the main families: sensor fusion, LiDAR odometry, 2D
+% and 3D LiDAR SLAM, tightly-coupled LiDAR-IMU SLAM, and visual SLAM.
+
+% All algorithms are tested on a single dataset recorded in NVIDIA Isaac Sim,
+% which provides exact ground-truth poses.
+% All experiments run under ROS\,2 (Robot Operating System).
+
+% Trajectory accuracy is measured using Absolute Trajectory Error (ATE) and
+% Relative Pose Error (RPE) against the simulator ground truth.
+% Map quality is assessed with Chamfer distance and F-score for algorithms that
+% produce a 3D point cloud, and visually for those that produce an occupancy
+% grid.
+% Computational cost is measured as mean CPU load and peak RAM usage during
+% execution.
 
 \section{Thesis Structure}
 
@@ -90,15 +152,26 @@ execution.
 \setlength{\parskip}{2pt}
 \setlength{\parindent}{1.5em}
 
+% Chapter~2 contains the theoretical background required to understand the thesis: navigation in mobile
+% robotics, sensors description, map representations, point cloud registration, and evaluation metrics.
+%
+% Chapter~3 describes each of the eleven evaluated algorithms, grouped by method family.
+%
+% Chapter~4 presents the experimental setup, the dataset, and the results for all eleven
+% algorithms, including trajectory accuracy, map quality, and computational cost.
+%
+% Chapter~5 concludes the thesis and provides a summary of findings made during experimental
+% evaluation of algorithms.
+
 Chapter~2 contains the theoretical background required to understand the
 thesis: sensors, map representations, point cloud registration, state
 estimation, graph-based SLAM, loop closure detection, and evaluation metrics.
 
-Chapter~3 describes each of the eleven evaluated algorithms, grouped by
+Chapter~3 describes each of the ten evaluated algorithms, grouped by
 method family.
 
 Chapter~4 presents the experimental setup, the dataset, and the results for
-all eleven algorithms, including trajectory accuracy, map quality, and
+all ten algorithms, including trajectory accuracy, map quality, and
 computational cost.
 
 Chapter~5 concludes the thesis and provides a summary of findings made during

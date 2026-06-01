@@ -804,10 +804,18 @@ Two groups of metrics are used in this thesis.
 Trajectory metrics measure how closely the estimated robot path matches the
 ground truth poses recorded from the simulation.
 Map metrics measure the geometric accuracy of the 3D point cloud produced
-by each algorithm relative to the reference map from the
-simulator.
+by each algorithm relative to the reference map from the simulator.
 The ground truth is a time-stamped sequence of $SE(3)$ poses, one per
 sensor frame, taken directly from the simulator with no sensor noise.
+
+Each metric produces a per-pose or per-point error value.
+These are summarised by three statistics.
+The RMSE (Root Mean Square Error) is the square root of the average squared
+error and is the primary reported value, as it penalises large errors more
+than small ones.
+The mean is the simple average of all error values.
+The maximum is the single largest error in the sequence and indicates
+worst-case behaviour.
 
 \subsection{Umeyama Alignment}
 
@@ -907,7 +915,7 @@ short-term drift that ATE may hide through loop-closure corrections.
 \subsection{Chamfer Distance}
 
 The Chamfer Distance (CD) is a symmetric measure of geometric fidelity
-between two point clouds~\cite{knapitsch2017tanks}.
+between two point clouds~\cite{fan2017point}.
 Given an estimated cloud $\mathcal{A}$ and a reference cloud $\mathcal{B}$,
 it averages the mean nearest-neighbour distance in both directions:
 
@@ -934,6 +942,10 @@ score without reflecting a systematic reconstruction failure.
 
 The F-score at a distance threshold $d$ combines precision and recall into a
 single bounded quality measure~\cite{knapitsch2017tanks}.
+Precision measures how accurate the estimated map is: a high precision means
+most points in the estimate are close to the reference.
+Recall measures how complete the estimated map is: a high recall means most
+parts of the reference are covered by the estimate.
 A point $\mathbf{a} \in \mathcal{A}$ is considered correct if its nearest
 neighbour in $\mathcal{B}$ is at most $d$ away, and vice versa:
 
@@ -948,9 +960,9 @@ neighbour in $\mathcal{B}$ is at most $d$ away, and vice versa:
   \label{eq:fscore}
 \end{align}
 
-Three thresholds are used in this thesis: $d = 5$\,cm (strict),
-$d = 10$\,cm (moderate), and $d = 20$\,cm (lenient).
-F@5\,cm penalises any gross geometric errors, while F@20\,cm tolerates
-small misalignments and rewards completeness.
-Unlike the Chamfer Distance, the F-score is bounded to $[0, 1]$ and is not
-dominated by a small number of distant outliers.
+Three thresholds are used in this thesis: 5\,cm, 10\,cm, and 20\,cm.
+A tight threshold such as 5\,cm only counts a point as correctly placed if
+it is very close to the reference.
+A loose threshold such as 20\,cm is more forgiving and rewards overall
+completeness.
+The F-score is always between 0 and 1, where 1 means a perfect match.
